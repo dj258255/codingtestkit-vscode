@@ -1,0 +1,59 @@
+# 버전 태그(v*) 푸시 시 자동 배포
+# 사용법: git tag v1.0.1 && git push origin v1.0.1
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+
+      # package.json 버전을 태그에 맞춰 자동 갱신
+      - name: Sync version from tag
+        env:
+          TAG_REF: ${{ github.ref_name }}
+        run: |
+          VERSION="${TAG_REF#v}"
+          npm version "$VERSION" --no-git-tag-version --allow-same-version
+
+      # .vsix 빌드
+      - name: Build VSIX
+        run: npx @vscode/vsce package --no-yarn
+
+      # VS Code Marketplace 배포
+      - name: Publish to VS Code Marketplace
+        env:
+          VSCE_PAT: ${{ secrets.VSCE_PAT }}
+        run: npx @vscode/vsce publish --no-yarn -p "$VSCE_PAT"
+
+      # Open VSX 배포 (선택 — 시크릿 없으면 스킵)
+      - name: Publish to Open VSX
+        if: env.OVSX_PAT != ''
+        env:
+          OVSX_PAT: ${{ secrets.OVSX_PAT }}
+        run: npx ovsx publish "$(ls *.vsix)" -p "$OVSX_PAT"
+
+      # GitHub Release 생성 + .vsix 첨부
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG_REF: ${{ github.ref_name }}
+        run: |
+          gh release create "$TAG_REF" *.vsix \
+            --title "$TAG_REF" \
+            --generate-notes

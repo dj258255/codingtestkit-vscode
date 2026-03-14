@@ -1,0 +1,217 @@
+{
+  "name": "codingtestkit",
+  "displayName": "CodingTestKit - Algorithm Problem Solver",
+  "description": "Fetch, test, and submit algorithm problems from BOJ, Programmers, SWEA, LeetCode, Codeforces — all without leaving VS Code.",
+  "version": "1.0.0",
+  "publisher": "codingtestkit",
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Education",
+    "Testing",
+    "Other"
+  ],
+  "keywords": [
+    "algorithm",
+    "competitive programming",
+    "baekjoon",
+    "programmers",
+    "leetcode",
+    "codeforces",
+    "swea",
+    "coding test",
+    "problem solving"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/dj258255/codingtestkit-vscode"
+  },
+  "bugs": {
+    "url": "https://github.com/dj258255/codingtestkit-vscode/issues"
+  },
+  "homepage": "https://github.com/dj258255/codingtestkit-vscode#readme",
+  "activationEvents": [],
+  "main": "./dist/extension.js",
+  "icon": "media/icons/ctk-pixel.png",
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "codingtestkit",
+          "title": "CodingTestKit",
+          "icon": "media/icons/ctk-toolwindow.svg"
+        }
+      ]
+    },
+    "views": {
+      "codingtestkit": [
+        {
+          "type": "webview",
+          "id": "codingtestkit.mainView",
+          "name": "CodingTestKit"
+        }
+      ]
+    },
+    "commands": [
+      {
+        "command": "codingtestkit.fetchProblem",
+        "title": "CodingTestKit: Fetch Problem"
+      },
+      {
+        "command": "codingtestkit.runTests",
+        "title": "CodingTestKit: Run All Tests"
+      },
+      {
+        "command": "codingtestkit.submitCode",
+        "title": "CodingTestKit: Submit Code"
+      },
+      {
+        "command": "codingtestkit.login",
+        "title": "CodingTestKit: Login"
+      },
+      {
+        "command": "codingtestkit.openSearch",
+        "title": "CodingTestKit: Search Problems"
+      },
+      {
+        "command": "codingtestkit.openRandom",
+        "title": "CodingTestKit: Random Problem"
+      },
+      {
+        "command": "codingtestkit.pushToGitHub",
+        "title": "CodingTestKit: Push to GitHub"
+      },
+      {
+        "command": "codingtestkit.translate",
+        "title": "CodingTestKit: Translate Problem"
+      }
+    ],
+    "keybindings": [
+      {
+        "command": "codingtestkit.fetchProblem",
+        "key": "ctrl+alt+f",
+        "mac": "cmd+alt+f"
+      },
+      {
+        "command": "codingtestkit.runTests",
+        "key": "ctrl+alt+r",
+        "mac": "cmd+alt+r"
+      },
+      {
+        "command": "codingtestkit.submitCode",
+        "key": "ctrl+alt+s",
+        "mac": "cmd+alt+s"
+      },
+      {
+        "command": "codingtestkit.translate",
+        "key": "ctrl+alt+t",
+        "mac": "cmd+alt+t"
+      }
+    ],
+    "configuration": {
+      "title": "CodingTestKit",
+      "properties": {
+        "codingtestkit.language": {
+          "type": "string",
+          "default": "KO",
+          "enum": [
+            "KO",
+            "EN"
+          ],
+          "enumDescriptions": [
+            "한국어",
+            "English"
+          ],
+          "description": "UI language / UI 언어"
+        },
+        "codingtestkit.generateReadme": {
+          "type": "boolean",
+          "default": false,
+          "description": "Generate README.md when fetching problems / 문제 가져올 때 README.md 생성"
+        },
+        "codingtestkit.autoComplete": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable auto-complete suggestions / 자동완성 활성화"
+        },
+        "codingtestkit.syntaxHighlightingOff": {
+          "type": "boolean",
+          "default": false,
+          "description": "Disable syntax highlighting colors / 구문 강조 끄기"
+        },
+        "codingtestkit.diagnosticsOff": {
+          "type": "boolean",
+          "default": false,
+          "description": "Hide code error/warning diagnostics / 오류 검사 끄기"
+        },
+        "codingtestkit.codeLensOff": {
+          "type": "boolean",
+          "default": false,
+          "description": "Hide CodeLens (N references) hints / 사용위치 힌트 끄기"
+        },
+        "codingtestkit.pasteBlock": {
+          "type": "boolean",
+          "default": false,
+          "description": "Block pasting text copied from outside the editor / 외부 붙여넣기 차단"
+        },
+        "codingtestkit.focusAlert": {
+          "type": "boolean",
+          "default": false,
+          "description": "Show alert when VS Code window loses focus / 포커스 이탈 감지"
+        },
+        "codingtestkit.autoPush": {
+          "type": "boolean",
+          "default": false,
+          "description": "Auto push to GitHub on submit / 제출 시 자동 GitHub 푸시"
+        },
+        "codingtestkit.examMode": {
+          "type": "boolean",
+          "default": false,
+          "description": "Enable exam mode (blocks paste, disables autocomplete, focus alert) / 시험 모드"
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run package",
+    "compile": "node esbuild.js",
+    "watch": "node esbuild.js --watch",
+    "package": "node esbuild.js --production",
+    "lint": "eslint src --ext ts"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "@types/tough-cookie": "^4.0.5",
+    "@types/vscode": "^1.85.0",
+    "esbuild": "^0.19.0",
+    "typescript": "^5.3.0"
+  },
+  "dependencies": {
+    "@codemirror/lang-cpp": "^6.0.3",
+    "@codemirror/lang-java": "^6.0.2",
+    "@codemirror/lang-javascript": "^6.2.5",
+    "@codemirror/lang-python": "^6.2.1",
+    "@codemirror/language": "^6.12.2",
+    "@codemirror/state": "^6.6.0",
+    "@codemirror/theme-one-dark": "^6.1.3",
+    "@codemirror/view": "^6.40.0",
+    "@types/adm-zip": "^0.5.7",
+    "@vscode/codicons": "^0.0.44",
+    "adm-zip": "^0.5.16",
+    "axios": "^1.6.0",
+    "cheerio": "^1.0.0-rc.12",
+    "codemirror": "^6.0.2",
+    "katex": "^0.16.38",
+    "puppeteer-core": "^24.39.1",
+    "tough-cookie": "^4.1.3",
+    "turndown": "^7.1.2"
+  },
+  "bundledDependencies": [
+    "puppeteer-core"
+  ],
+  "bundleDependencies": [
+    "puppeteer-core"
+  ]
+}

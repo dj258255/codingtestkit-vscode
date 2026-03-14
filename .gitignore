@@ -1,0 +1,10 @@
+node_modules/
+dist/
+*.vsix
+.vscode-test/
+.claude/
+.playwright-mcp/
+firebase-debug.log
+*.log
+.DS_Store
+out/
