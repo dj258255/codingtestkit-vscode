@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="media/icons/ctk-pixel.svg" width="128" alt="CodingTestKit Icon"/>
+  <img src="media/icons/ctk-pixel.png" width="128" alt="CodingTestKit Icon"/>
 </p>
 
 <h1 align="center">CodingTestKit for VS Code</h1>
