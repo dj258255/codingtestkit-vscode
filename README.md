@@ -9,12 +9,12 @@
 </p>
 
 <p align="center">
-  <a href="#english"><b>English</b></a> &nbsp;|&nbsp; <a href="#한국어"><b>한국어</b></a>
+  <a href="#english"><b>English</b></a> &nbsp;|&nbsp; <a href="#korean"><b>한국어</b></a>
 </p>
 
 ---
 
-# English
+<h1 id="english">English</h1>
 
 ## Why?
 
@@ -300,7 +300,7 @@ npx vsce package
 
 ---
 
-# 한국어
+<h1 id="korean">한국어</h1>
 
 ## 왜 만들었나?
 
