@@ -14,7 +14,7 @@ async function main() {
     sourcesContent: false,
     platform: 'node',
     outfile: 'dist/extension.js',
-    external: ['vscode', 'puppeteer-core'],
+    external: ['vscode'],
     logLevel: 'silent',
     plugins: [
       {

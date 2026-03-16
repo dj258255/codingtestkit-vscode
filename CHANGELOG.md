@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.0.1] - 2026-03-16
+
+### Fixed
+
+- **Browser Login**: Fix automatic browser login not working on installed extension — puppeteer-core was excluded from VSIX package due to `.vscodeignore` ignoring `node_modules/**`. Now bundled directly into `extension.js` via esbuild so all platforms (BOJ, Programmers, SWEA, LeetCode, Codeforces) correctly launch Chromium and capture cookies automatically.
+
 ## [1.0.0] - 2026-03-14
 
 ### Features

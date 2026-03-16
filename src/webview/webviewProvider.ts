@@ -475,10 +475,10 @@ export class CodingTestKitViewProvider implements vscode.WebviewViewProvider {
       (_progress, token) => {
         return new Promise<Awaited<ReturnType<typeof browserLogin>>>((resolve) => {
           const loginPromise = browserLogin(source);
-          loginPromise.then(resolve);
+          loginPromise.then(resolve).catch(() => {
+            resolve({ success: false, error: 'UNKNOWN' });
+          });
           token.onCancellationRequested(() => {
-            // browserLogin will detect disconnected event when browser is closed
-            // but we also resolve here so withProgress finishes
             resolve({ success: false, error: 'USER_CLOSED' });
           });
         });
@@ -504,7 +504,8 @@ export class CodingTestKitViewProvider implements vscode.WebviewViewProvider {
       return;
     }
 
-    // Fallback: NO_BROWSER, NO_PUPPETEER, or UNKNOWN → show QuickPick
+    // Fallback: NO_BROWSER or UNKNOWN → show QuickPick
+    console.warn('[CodingTestKit] Browser login failed:', browserResult.error);
     await this._quickPickLogin(source);
   }
 

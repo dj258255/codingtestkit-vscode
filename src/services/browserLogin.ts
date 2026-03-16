@@ -1,6 +1,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { execFileSync } from 'child_process';
+import * as puppeteer from 'puppeteer-core';
 import { ProblemSource } from '../models/models';
 import { getLoginUrl } from './authService';
 
@@ -8,7 +9,7 @@ export interface BrowserLoginResult {
   success: boolean;
   cookies?: string;
   username?: string;
-  error?: 'NO_BROWSER' | 'NO_PUPPETEER' | 'USER_CLOSED' | 'TIMEOUT' | 'UNKNOWN';
+  error?: 'NO_BROWSER' | 'USER_CLOSED' | 'TIMEOUT' | 'UNKNOWN';
 }
 
 // --- Browser detection ---
@@ -212,15 +213,11 @@ export async function browserLogin(
 ): Promise<BrowserLoginResult> {
   const executablePath = await detectChromiumBrowser();
   if (!executablePath) {
+    console.warn('[CodingTestKit] No Chromium browser found');
     return { success: false, error: 'NO_BROWSER' };
   }
 
-  let puppeteer: any;
-  try {
-    puppeteer = require('puppeteer-core');
-  } catch {
-    return { success: false, error: 'NO_PUPPETEER' };
-  }
+  console.log('[CodingTestKit] Using browser:', executablePath);
 
   const loginUrl = getLoginUrl(source);
   let browser: any;
@@ -310,7 +307,8 @@ export async function browserLogin(
         done({ success: false, error: 'TIMEOUT' });
       }, 5 * 60 * 1000);
     });
-  } catch {
+  } catch (err) {
+    console.error('[CodingTestKit] Browser login failed:', err);
     browser?.close().catch(() => {});
     return { success: false, error: 'UNKNOWN' };
   }
