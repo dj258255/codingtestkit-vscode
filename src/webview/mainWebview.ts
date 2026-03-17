@@ -806,6 +806,10 @@ label { font-size: 12px; display: flex; align-items: center; gap: var(--ctk-spac
   </div>
   <div class="section-title" data-ko="코드 미리보기" data-en="Code Preview">Code Preview</div>
   <div id="templateCodeContainer"></div>
+  <div id="templateEditActions" style="display:none; margin-top:8px; gap:6px; justify-content:flex-end;">
+    <button id="templateSaveEditBtn" class="success btn-sm"><span class="codicon codicon-check"></span> <span data-ko="변경 저장" data-en="Save Changes">Save Changes</span></button>
+    <button id="templateCancelEditBtn" class="secondary btn-sm"><span class="codicon codicon-discard"></span> <span data-ko="취소" data-en="Cancel">Cancel</span></button>
+  </div>
 </div>
 
 <!-- ================= TAB 4: TIMER ================= -->
@@ -1066,6 +1070,7 @@ label { font-size: 12px; display: flex; align-items: center; gap: var(--ctk-spac
     testRunning: false,
     templates: [],
     selectedTemplate: null,
+    _templateOriginalCode: '',
     // Stopwatch
     swRunning: false,
     swStartTime: 0,
@@ -2065,26 +2070,50 @@ label { font-size: 12px; display: flex; align-items: center; gap: var(--ctk-spac
   // Random translate button
   $('#randomTranslateBtn').addEventListener('click', function() {
     var titleEls = $$('#randomResultsList .problem-row-title');
-    var tagEls = $$('#randomResultsList .col-tags');
+    var tagEls = $$('#randomResultsList td.col-tags');
     if (titleEls.length === 0) return;
     state._randomTranslated = !state._randomTranslated;
     if (state._randomTranslated && Object.keys(state._randomTranslatedTitles || {}).length === 0) {
-      // Save originals and request translation (titles + tags together)
+      // Save originals and request translation for titles
       var originals = {};
       titleEls.forEach(function(el, i) { originals[i] = el.textContent; });
       state._randomOriginalTitles = originals;
+      // Save original tags from DOM and build translated tags locally using cached tag data
       var originalTags = {};
       tagEls.forEach(function(el, i) { originalTags[i] = el.textContent; });
+      // Build tag translations locally using cached tag lookup
+      var tableData = $('#randomResultsList')._ptableData;
+      var translatedTags = {};
+      if (tableData && tableData.items) {
+        // Build EN->KO lookup once from cached tag data
+        var lookup = {};
+        ['CODEFORCES', 'LEETCODE'].forEach(function(src) {
+          var cached = state._cachedTags[src];
+          if (cached) {
+            cached.forEach(function(tg) {
+              if (tg.en && tg.ko) { lookup[tg.en.toLowerCase()] = tg.ko; }
+            });
+          }
+        });
+        tagEls.forEach(function(el, i) {
+          var item = tableData.items[i];
+          if (item && item.tags && Array.isArray(item.tags)) {
+            var koTags = item.tags.map(function(tag) { return lookup[tag.toLowerCase()] || tag; });
+            var enTags = (item.tagsEn && item.tagsEn.length > 0) ? item.tagsEn : item.tags;
+            // Original view is KO (default API returns KO titles), so translated view is EN
+            translatedTags[i] = enTags.join(', ');
+            // Store KO version as original
+            originalTags[i] = koTags.join(', ');
+          }
+        });
+      }
       state._randomOriginalTags = originalTags;
+      state._randomTranslatedTags = translatedTags;
       $('#randomTranslateBtn').textContent = '...';
       $('#randomTranslateBtn').disabled = true;
-      // Combine titles and tags with separator for batch translation
+      // Only need to translate titles remotely; tags are handled locally
       var titleBatch = Object.values(originals).join('\\n');
-      var tagBatch = Object.values(originalTags).join('\\n');
       vscode.postMessage({ command: 'translateBatch', data: { text: titleBatch, context: 'random' } });
-      if (tagBatch.trim()) {
-        vscode.postMessage({ command: 'translateBatch', data: { text: tagBatch, context: 'randomTags' } });
-      }
     } else {
       applyRandomTranslation();
     }
@@ -2160,7 +2189,7 @@ label { font-size: 12px; display: flex; align-items: center; gap: var(--ctk-spac
   // ─── Translation helpers for search/random modals ───
   function applyRandomTranslation() {
     var titleEls = $$('#randomResultsList .problem-row-title');
-    var tagEls = $$('#randomResultsList .col-tags');
+    var tagEls = $$('#randomResultsList td.col-tags');
     var showing = state._randomTranslated;
     $('#randomTranslateBtn').textContent = showing ? 'KO' : 'EN';
     titleEls.forEach(function(el, i) {
@@ -2684,6 +2713,25 @@ label { font-size: 12px; display: flex; align-items: center; gap: var(--ctk-spac
     showToast(t('템플릿 삭제 중...', 'Deleting template...'));
   });
 
+  // Template preview: save changes / cancel
+  $('#templateSaveEditBtn').addEventListener('click', function() {
+    if (!state.selectedTemplate) return;
+    var name = $('#templateNameInput').value.trim() || state.selectedTemplate;
+    var lang = $('#templateLangSelect').value;
+    var code = window.cmEditor ? window.cmEditor.getValue() : '';
+    if (!code) { showToast(t('저장할 코드가 없습니다.', 'No code to save.'), 'error'); return; }
+    vscode.postMessage({ command: 'saveTemplate', data: { name: name, language: lang, code: code, fromPreview: true } });
+    state._templateOriginalCode = code;
+    showToast(t('✓ 템플릿 변경사항 저장됨', '✓ Template changes saved'), 'success');
+  });
+
+  $('#templateCancelEditBtn').addEventListener('click', function() {
+    if (window.cmEditor && state._templateOriginalCode !== undefined) {
+      window.cmEditor.setValue(state._templateOriginalCode);
+    }
+    showToast(t('변경사항이 취소되었습니다.', 'Changes cancelled.'));
+  });
+
   function renderTemplateList() {
     var container = $('#templateList');
     if (!state.templates || state.templates.length === 0) {
@@ -2716,9 +2764,11 @@ label { font-size: 12px; display: flex; align-items: center; gap: var(--ctk-spac
         // Find template and show code
         var found = state.templates.find(function(t) { return t.name === state.selectedTemplate; });
         if (found) {
+          state._templateOriginalCode = found.code || '';
           if (window.cmEditor) { window.cmEditor.setValue(found.code || ''); window.cmEditor.setLanguage(found.language || 'JAVA'); }
           $('#templateNameInput').value = found.name;
           $('#templateLangSelect').value = found.language || 'JAVA';
+          $('#templateEditActions').style.display = 'flex';
         }
       });
 
@@ -3238,16 +3288,7 @@ label { font-size: 12px; display: flex; align-items: center; gap: var(--ctk-spac
     vscode.postMessage({ command: 'changeSetting', data: { key: 'autoPush', value: this.checked } });
   });
 
-  // Focus alert: detect window blur
-  window.addEventListener('blur', function() {
-    if ($('#settingFocusAlert').checked) {
-      state.focusLostCount++;
-      showToast(
-        t('포커스 이탈 감지! (총 ' + state.focusLostCount + '회)', 'Focus lost! (Total: ' + state.focusLostCount + ')'),
-        'error'
-      );
-    }
-  });
+  // Focus alert: handled by extension host via onDidChangeWindowState
 
   // Request tool paths and initial settings
   vscode.postMessage({ command: 'getToolPaths' });
@@ -3359,6 +3400,17 @@ label { font-size: 12px; display: flex; align-items: center; gap: var(--ctk-spac
         $('#problemContent').textContent = '';
         $('#problemIdInput').value = '';
         renderTestCases();
+        break;
+      }
+
+      case 'focusLost': {
+        if ($('#settingFocusAlert').checked) {
+          state.focusLostCount++;
+          showToast(
+            t('포커스 이탈 감지! (총 ' + state.focusLostCount + '회)', 'Focus lost! (Total: ' + state.focusLostCount + ')'),
+            'error'
+          );
+        }
         break;
       }
 
@@ -3486,11 +3538,6 @@ label { font-size: 12px; display: flex; align-items: center; gap: var(--ctk-spac
           translatedList.forEach(function(t, i) { map[i] = t.trim(); });
           state._randomTranslatedTitles = map;
           $('#randomTranslateBtn').disabled = false;
-          applyRandomTranslation();
-        } else if (ctx === 'randomTags') {
-          var tmap = {};
-          translatedList.forEach(function(t, i) { tmap[i] = t.trim(); });
-          state._randomTranslatedTags = tmap;
           applyRandomTranslation();
         } else if (ctx === 'search') {
           var smap = {};

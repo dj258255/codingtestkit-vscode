@@ -1,6 +1,6 @@
 # Changelog
 
-## [1.0.2] - 2026-03-17
+## [1.0.3] - 2026-03-17
 
 ### Fixed
 
@@ -8,10 +8,13 @@
 - **LeetCode CSRF**: Fix "Failed to obtain CSRF token" error — LeetCode homepage is now blocked by Cloudflare (403). CSRF token is now obtained from the GraphQL endpoint instead.
 - **Template Save**: Fix template saving wrong content — now correctly saves code from the active VS Code editor instead of the CodeMirror preview.
 - **Debug Output**: Fix stderr textarea not filling full width — now expands horizontally and is vertically resizable.
+- **Focus Alert**: Fix webview click (e.g. clicking problem view) being detected as focus loss — now uses VS Code's `onDidChangeWindowState` to only detect actual window focus loss (Alt+Tab, switching apps).
+- **Random Problem Translation**: Fix EN/KO toggle not translating tags — tags were only translated via local cache which lacked Korean data for LeetCode. Now uses remote translation for both titles and tags consistently.
 
 ### Improved
 
-- **Syntax Highlighting**: Template code preview now uses platform-specific syntax colors matching the actual coding test site (Programmers/BOJ uses CodeMirror default, LeetCode uses Monaco vs-dark, Codeforces uses Ace chrome). Supports both VS Code light and dark themes with automatic detection.
+- **Syntax Highlighting (Programmers)**: Template code preview and VS Code editor syntax colors now use actual Programmers colors extracted from programmers.co.kr (dark: tomorrow-night-bright, light: eclipse theme). All languages supported uniformly.
+- **Template Edit/Save/Cancel**: Template code preview now shows "Save Changes" and "Cancel" buttons when editing — save updates the template, cancel reverts to original.
 - **Editor-Problem Sync**: Clicking a problem file shows that problem; switching to a non-problem file clears the problem view for a cleaner workspace.
 
 ## [1.0.1] - 2026-03-16

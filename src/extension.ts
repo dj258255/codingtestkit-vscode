@@ -99,6 +99,15 @@ export function activate(context: vscode.ExtensionContext) {
     })
   );
 
+  // Focus alert: detect VS Code window focus loss (not webview iframe blur)
+  context.subscriptions.push(
+    vscode.window.onDidChangeWindowState((state) => {
+      if (!state.focused) {
+        provider.sendCommand('focusLost');
+      }
+    })
+  );
+
   // Listen for configuration changes
   context.subscriptions.push(
     vscode.workspace.onDidChangeConfiguration((e) => {

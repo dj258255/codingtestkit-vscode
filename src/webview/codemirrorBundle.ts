@@ -32,34 +32,36 @@ function isDarkTheme(): boolean {
 
 // --- Pre-built HighlightStyle constants for each platform × theme ---
 
-// Programmers / Baekjoon / SWEA — dark (CodeMirror default brightened)
+// Programmers / Baekjoon / SWEA — dark (tomorrow-night-bright, actual Programmers colors)
 const programmersDark = HighlightStyle.define([
-  { tag: [t.keyword, t.operatorKeyword], color: '#C678DD' },
-  { tag: t.string, color: '#E06C75' },
-  { tag: [t.comment, t.lineComment, t.blockComment], color: '#CC8844' },
-  { tag: t.number, color: '#55BB88' },
-  { tag: [t.definition(t.variableName), t.function(t.variableName)], color: '#61AFEF' },
-  { tag: [t.typeName, t.className], color: '#56B6C2' },
-  { tag: [t.atom, t.bool, t.null], color: '#7C8CFF' },
-  { tag: t.variableName, color: '#E5C07B' },
-  { tag: t.propertyName, color: '#E5C07B' },
-  { tag: [t.operator, t.punctuation], color: '#ABB2BF' },
-  { tag: t.self, color: '#E06C75' },
+  { tag: [t.keyword, t.operatorKeyword], color: '#C38FE5' },
+  { tag: t.string, color: '#E7C547' },
+  { tag: [t.comment, t.lineComment, t.blockComment], color: '#D27B53' },
+  { tag: t.number, color: '#A16A94' },
+  { tag: [t.definition(t.variableName), t.function(t.variableName)], color: '#FFEB3B' },
+  { tag: [t.typeName, t.className], color: '#7AA6DA' },
+  { tag: [t.atom, t.bool, t.null], color: '#A16A94' },
+  { tag: t.variableName, color: '#4CAF50' },
+  { tag: t.propertyName, color: '#99CC99' },
+  { tag: [t.operator, t.punctuation], color: '#EAEAEA' },
+  { tag: t.self, color: '#C38FE5' },
+  { tag: t.meta, color: '#EAEAEA' },
 ]);
 
-// Programmers / Baekjoon / SWEA — light (CodeMirror v5 default)
+// Programmers / Baekjoon / SWEA — light (eclipse customized, actual Programmers colors)
 const programmersLight = HighlightStyle.define([
-  { tag: [t.keyword, t.operatorKeyword], color: '#770088' },
-  { tag: t.string, color: '#AA1111' },
-  { tag: [t.comment, t.lineComment, t.blockComment], color: '#AA5500' },
+  { tag: [t.keyword, t.operatorKeyword], color: '#9C27B0' },
+  { tag: t.string, color: '#2A00FF' },
+  { tag: [t.comment, t.lineComment, t.blockComment], color: '#3F7F5F' },
   { tag: t.number, color: '#116644' },
   { tag: [t.definition(t.variableName), t.function(t.variableName)], color: '#0000FF' },
-  { tag: [t.typeName, t.className], color: '#008855' },
+  { tag: [t.typeName, t.className], color: '#FF5722' },
   { tag: [t.atom, t.bool, t.null], color: '#221199' },
   { tag: t.variableName, color: '#000000' },
   { tag: t.propertyName, color: '#000000' },
   { tag: [t.operator, t.punctuation], color: '#000000' },
-  { tag: t.self, color: '#AA1111' },
+  { tag: t.self, color: '#9C27B0' },
+  { tag: t.meta, color: '#FF1717' },
 ]);
 
 // LeetCode — dark (Monaco vs-dark)

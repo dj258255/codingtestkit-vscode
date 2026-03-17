@@ -842,10 +842,13 @@ export class CodingTestKitViewProvider implements vscode.WebviewViewProvider {
     this.sendCommand('translated', { description: translated, isTranslated: true });
   }
 
-  private _saveTemplate(data: { name: string; language: string; code?: string }): void {
+  private _saveTemplate(data: { name: string; language: string; code?: string; fromPreview?: boolean }): void {
     const editor = vscode.window.activeTextEditor;
-    // Prefer active VS Code editor content over CodeMirror preview
-    const code = (editor ? editor.document.getText() : '') || data.code || '';
+    // fromPreview: use CodeMirror content directly (editing existing template)
+    // otherwise: prefer active VS Code editor (saving new template from file)
+    const code = data.fromPreview
+      ? (data.code || '')
+      : ((editor ? editor.document.getText() : '') || data.code || '');
     if (!code) {
       this.sendCommand('error', { message: t('저장할 코드가 없습니다.', 'No code to save.') });
       return;
@@ -1013,7 +1016,44 @@ export class CodingTestKitViewProvider implements vscode.WebviewViewProvider {
           }],
         }, vscode.ConfigurationTarget.Global);
       } else {
-        await editorConfig.update('tokenColorCustomizations', undefined, vscode.ConfigurationTarget.Global);
+        // Syntax ON → apply Programmers-style token colors (actual programmers.co.kr colors)
+        const themeKind = vscode.window.activeColorTheme.kind;
+        const isDark = themeKind === vscode.ColorThemeKind.Dark || themeKind === vscode.ColorThemeKind.HighContrast;
+        if (isDark) {
+          // Programmers dark: tomorrow-night-bright theme
+          await editorConfig.update('tokenColorCustomizations', {
+            textMateRules: [
+              { scope: ['keyword', 'keyword.control', 'storage.type', 'storage.modifier'], settings: { foreground: '#C38FE5', fontStyle: '' } },
+              { scope: ['entity.name.type', 'entity.name.class', 'support.class', 'support.type'], settings: { foreground: '#7AA6DA' } },
+              { scope: ['entity.name.function', 'support.function'], settings: { foreground: '#FFEB3B' } },
+              { scope: ['comment', 'comment.line', 'comment.block'], settings: { foreground: '#D27B53' } },
+              { scope: ['string', 'string.quoted'], settings: { foreground: '#E7C547' } },
+              { scope: ['constant.numeric'], settings: { foreground: '#A16A94' } },
+              { scope: ['constant.language'], settings: { foreground: '#A16A94' } },
+              { scope: ['variable.language.this', 'variable.language.self'], settings: { foreground: '#C38FE5' } },
+              { scope: ['variable', 'variable.other', 'variable.parameter'], settings: { foreground: '#4CAF50' } },
+              { scope: ['variable.other.property', 'entity.other.attribute-name'], settings: { foreground: '#99CC99' } },
+              { scope: ['keyword.operator'], settings: { foreground: '#EAEAEA', fontStyle: '' } },
+            ],
+          }, vscode.ConfigurationTarget.Global);
+        } else {
+          // Programmers light: eclipse theme (customized)
+          await editorConfig.update('tokenColorCustomizations', {
+            textMateRules: [
+              { scope: ['keyword', 'keyword.control', 'storage.type', 'storage.modifier'], settings: { foreground: '#9C27B0', fontStyle: '' } },
+              { scope: ['entity.name.type', 'entity.name.class', 'support.class', 'support.type'], settings: { foreground: '#FF5722' } },
+              { scope: ['entity.name.function', 'support.function'], settings: { foreground: '#0000FF' } },
+              { scope: ['comment', 'comment.line', 'comment.block'], settings: { foreground: '#3F7F5F' } },
+              { scope: ['string', 'string.quoted'], settings: { foreground: '#2A00FF' } },
+              { scope: ['constant.numeric'], settings: { foreground: '#116644' } },
+              { scope: ['constant.language'], settings: { foreground: '#221199' } },
+              { scope: ['variable.language.this', 'variable.language.self'], settings: { foreground: '#9C27B0' } },
+              { scope: ['variable', 'variable.other', 'variable.parameter'], settings: { foreground: '#000000' } },
+              { scope: ['keyword.operator'], settings: { foreground: '#000000', fontStyle: '' } },
+              { scope: ['meta'], settings: { foreground: '#FF1717' } },
+            ],
+          }, vscode.ConfigurationTarget.Global);
+        }
       }
     } else if (data.key === 'diagnosticsOff') {
       await config.update(data.key, data.value, vscode.ConfigurationTarget.Global);
