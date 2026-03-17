@@ -2265,13 +2265,14 @@ label { font-size: 12px; display: flex; align-items: center; gap: var(--ctk-spac
       thCheck.appendChild(selectAllCb);
       htr.appendChild(thCheck);
 
+      var showTags = state.platform !== 'SWEA';
       var headers = [
         { text: t('번호', 'No.'), cls: 'col-pid' },
         { text: t('제목', 'Title'), cls: 'col-title' },
         { text: t('난이도', 'Difficulty'), cls: 'col-diff' },
-        { text: t('태그', 'Tags'), cls: 'col-tags' },
-        { text: t('맞은 사람', 'Accepted'), cls: 'col-accepted' }
       ];
+      if (showTags) { headers.push({ text: t('태그', 'Tags'), cls: 'col-tags' }); }
+      headers.push({ text: t('맞은 사람', 'Accepted'), cls: 'col-accepted' });
       headers.forEach(function(h) {
         var th = document.createElement('th');
         th.className = h.cls;
@@ -2323,17 +2324,19 @@ label { font-size: 12px; display: flex; align-items: center; gap: var(--ctk-spac
         tr.appendChild(tdDiff);
 
         // Tags — show as-is from API (no auto-translate; translate button handles it)
-        var tdTags = document.createElement('td');
-        tdTags.className = 'col-tags';
-        var tagStr = '';
-        if (p.tags && Array.isArray(p.tags)) {
-          tagStr = p.tags.join(', ');
-        } else if (p.tags && typeof p.tags === 'string') {
-          tagStr = p.tags;
+        if (showTags) {
+          var tdTags = document.createElement('td');
+          tdTags.className = 'col-tags';
+          var tagStr = '';
+          if (p.tags && Array.isArray(p.tags)) {
+            tagStr = p.tags.join(', ');
+          } else if (p.tags && typeof p.tags === 'string') {
+            tagStr = p.tags;
+          }
+          tdTags.textContent = tagStr;
+          tdTags.setAttribute('data-full', tagStr);
+          tr.appendChild(tdTags);
         }
-        tdTags.textContent = tagStr;
-        tdTags.setAttribute('data-full', tagStr);
-        tr.appendChild(tdTags);
 
         // Accepted count
         var tdAcc = document.createElement('td');
