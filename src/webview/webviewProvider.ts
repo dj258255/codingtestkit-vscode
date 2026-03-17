@@ -61,7 +61,18 @@ export class CodingTestKitViewProvider implements vscode.WebviewViewProvider {
     this._view?.webview.postMessage({ command, data });
   }
 
-  async onEditorChanged(editor: vscode.TextEditor): Promise<void> {
+  async onEditorChanged(editor?: vscode.TextEditor): Promise<void> {
+    if (!editor) {
+      this._currentProblem = undefined;
+      this._testCases = [];
+      this._originalHtml = undefined;
+      this._translatedHtml = undefined;
+      this._isTranslated = false;
+      this.sendCommand('clearProblem');
+      this.onStatusUpdate?.({ problemId: '', title: '' });
+      return;
+    }
+
     const filePath = editor.document.uri.fsPath;
     const problemFolder = findProblemFolder(filePath);
     if (problemFolder) {
@@ -83,8 +94,18 @@ export class CodingTestKitViewProvider implements vscode.WebviewViewProvider {
           this._currentLanguage = lang;
           this.sendCommand('updateLanguage', lang);
         }
+        return;
       }
     }
+
+    // Not a problem file → clear display
+    this._currentProblem = undefined;
+    this._testCases = [];
+    this._originalHtml = undefined;
+    this._translatedHtml = undefined;
+    this._isTranslated = false;
+    this.sendCommand('clearProblem');
+    this.onStatusUpdate?.({ problemId: '', title: '' });
   }
 
   private async _handleMessage(msg: any): Promise<void> {
@@ -771,7 +792,10 @@ export class CodingTestKitViewProvider implements vscode.WebviewViewProvider {
           'acceptance_asc', 1, cookies
         );
         const allProgs = progRes.problems || [];
-        const progShuffled = allProgs.sort(() => Math.random() - 0.5);
+        const levelFiltered = data.levels?.length > 0
+          ? allProgs.filter((p: any) => data.levels.includes(p.level))
+          : allProgs;
+        const progShuffled = levelFiltered.sort(() => Math.random() - 0.5);
         problems = progShuffled.slice(0, count || 5);
         break;
       }
@@ -820,7 +844,8 @@ export class CodingTestKitViewProvider implements vscode.WebviewViewProvider {
 
   private _saveTemplate(data: { name: string; language: string; code?: string }): void {
     const editor = vscode.window.activeTextEditor;
-    const code = data.code || (editor ? editor.document.getText() : '');
+    // Prefer active VS Code editor content over CodeMirror preview
+    const code = (editor ? editor.document.getText() : '') || data.code || '';
     if (!code) {
       this.sendCommand('error', { message: t('저장할 코드가 없습니다.', 'No code to save.') });
       return;

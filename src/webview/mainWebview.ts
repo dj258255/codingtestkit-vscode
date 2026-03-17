@@ -305,6 +305,7 @@ label { font-size: 12px; display: flex; align-items: center; gap: var(--ctk-spac
 .tc-diff-ok { color: var(--ctk-success, #3fb950); }
 .tc-diff-bad { color: var(--ctk-danger, #f85149); background: rgba(248,81,73,0.1); border-radius: 2px; }
 .tc-extra-row { grid-column: 1 / -1; }
+.tc-extra-row textarea { width: 100%; box-sizing: border-box; resize: vertical; min-height: 40px; }
 .test-field-label {
   font-size: 11px; color: var(--vscode-descriptionForeground, #999);
   margin: 0 0 var(--ctk-space-xs);
@@ -1312,6 +1313,7 @@ label { font-size: 12px; display: flex; align-items: center; gap: var(--ctk-spac
   // ===== PROBLEM TAB =====
   $('#platformSelect').addEventListener('change', function() {
     state.platform = this.value;
+    if (window.cmEditor) { window.cmEditor.setPlatform(this.value); }
     vscode.postMessage({ command: 'changePlatform', data: { source: this.value } });
   });
 
@@ -3178,6 +3180,7 @@ label { font-size: 12px; display: flex; align-items: center; gap: var(--ctk-spac
   });
 
   $('#settingSyntaxOff').addEventListener('change', function() {
+    if (window.cmEditor) { window.cmEditor.setSyntaxHighlighting(!this.checked); }
     vscode.postMessage({ command: 'changeSetting', data: { key: 'syntaxHighlightingOff', value: this.checked } });
   });
 
@@ -3350,6 +3353,15 @@ label { font-size: 12px; display: flex; align-items: center; gap: var(--ctk-spac
         break;
       }
 
+      case 'clearProblem': {
+        state.problem = null;
+        state.testCases = [];
+        $('#problemContent').textContent = '';
+        $('#problemIdInput').value = '';
+        renderTestCases();
+        break;
+      }
+
       case 'testResult': {
         var r = msg.data;
         var idx = r.index !== undefined ? r.index : 0;
@@ -3514,7 +3526,10 @@ label { font-size: 12px; display: flex; align-items: center; gap: var(--ctk-spac
         var s = msg.data;
         if (s.language) { $('#settingLang').value = s.language; state.uiLang = s.language; }
         if (s.autoComplete !== undefined) { $('#settingAutoComplete').checked = !s.autoComplete; }
-        if (s.syntaxHighlightingOff !== undefined) { $('#settingSyntaxOff').checked = s.syntaxHighlightingOff; }
+        if (s.syntaxHighlightingOff !== undefined) {
+          $('#settingSyntaxOff').checked = s.syntaxHighlightingOff;
+          if (window.cmEditor) { window.cmEditor.setSyntaxHighlighting(!s.syntaxHighlightingOff); }
+        }
         if (s.diagnosticsOff !== undefined) { $('#settingDiagnosticsOff').checked = s.diagnosticsOff; }
         if (s.codeLensOff !== undefined) { $('#settingCodeLensOff').checked = s.codeLensOff; }
         if (s.pasteBlock !== undefined) { $('#settingPasteBlock').checked = s.pasteBlock; }

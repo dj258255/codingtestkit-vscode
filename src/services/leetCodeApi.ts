@@ -37,12 +37,17 @@ export async function fetchCsrfToken(): Promise<string> {
     return cachedCsrfToken;
   }
 
-  const response = await axios.get('https://leetcode.com/', {
-    headers: { 'User-Agent': UA },
-    timeout: TIMEOUT,
-    maxRedirects: 5,
-    validateStatus: () => true,
-  });
+  // Use a lightweight GraphQL query to obtain the CSRF token from response cookies.
+  // The homepage (https://leetcode.com/) is blocked by Cloudflare (403).
+  const response = await axios.post(
+    GRAPHQL_URL,
+    { query: '{ userStatus { isSignedIn } }', variables: {} },
+    {
+      headers: buildPublicHeaders(),
+      timeout: TIMEOUT,
+      validateStatus: () => true,
+    },
+  );
 
   const setCookieHeaders: string[] = response.headers['set-cookie'] ?? [];
   for (const cookie of setCookieHeaders) {

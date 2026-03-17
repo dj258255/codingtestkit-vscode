@@ -95,9 +95,7 @@ export function activate(context: vscode.ExtensionContext) {
   // Listen for active editor changes to auto-detect problems
   context.subscriptions.push(
     vscode.window.onDidChangeActiveTextEditor((editor) => {
-      if (editor) {
-        provider.onEditorChanged(editor);
-      }
+      provider.onEditorChanged(editor);
     })
   );
 

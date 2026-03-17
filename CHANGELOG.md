@@ -1,5 +1,19 @@
 # Changelog
 
+## [1.0.2] - 2026-03-17
+
+### Fixed
+
+- **Random Problem (Programmers)**: Fix random picker returning problems outside selected levels — added client-side level filtering to ensure only chosen levels (e.g. Lv.1, Lv.2) appear in results.
+- **LeetCode CSRF**: Fix "Failed to obtain CSRF token" error — LeetCode homepage is now blocked by Cloudflare (403). CSRF token is now obtained from the GraphQL endpoint instead.
+- **Template Save**: Fix template saving wrong content — now correctly saves code from the active VS Code editor instead of the CodeMirror preview.
+- **Debug Output**: Fix stderr textarea not filling full width — now expands horizontally and is vertically resizable.
+
+### Improved
+
+- **Syntax Highlighting**: Template code preview now uses platform-specific syntax colors matching the actual coding test site (Programmers/BOJ uses CodeMirror default, LeetCode uses Monaco vs-dark, Codeforces uses Ace chrome). Supports both VS Code light and dark themes with automatic detection.
+- **Editor-Problem Sync**: Clicking a problem file shows that problem; switching to a non-problem file clears the problem view for a cleaner workspace.
+
 ## [1.0.1] - 2026-03-16
 
 ### Fixed
