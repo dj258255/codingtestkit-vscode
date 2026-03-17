@@ -1,6 +1,6 @@
 # Changelog
 
-## [1.0.4] - 2026-03-17
+## [1.0.5] - 2026-03-17
 
 ### Fixed
 
@@ -10,6 +10,8 @@
 - **Debug Output**: Fix stderr textarea not filling full width — now expands horizontally and is vertically resizable.
 - **Focus Alert**: Fix webview click (e.g. clicking problem view) being detected as focus loss — now uses VS Code's `onDidChangeWindowState` to only detect actual window focus loss (Alt+Tab, switching apps).
 - **Random Problem Translation**: Initial display now shows API original as-is (no auto-translate). EN/KO button translates both titles and tags together via remote API for full consistency across all platforms.
+- **LeetCode Submit URL**: Fix submit opening `problems/1/` instead of `problems/two-sum/` — now stores the title slug and uses it for the submit URL.
+- **SWEA Tags**: Hide empty tag column for SWEA (tags not available).
 
 ### Improved
 

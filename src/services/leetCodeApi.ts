@@ -347,7 +347,7 @@ export async function fetchProblem(
     difficulty: question.difficulty ?? '',
     parameterNames,
     initialCode,
-    contestProbId: '',
+    contestProbId: slug,
   };
 }
 

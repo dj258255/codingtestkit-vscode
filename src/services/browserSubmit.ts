@@ -66,7 +66,7 @@ function getSubmitUrl(source: ProblemSource, problemId: string, language?: Langu
       return `https://swexpertacademy.com/main/code/problem/problemDetail.do?contestProbId=${contestProbId || problemId}`;
 
     case ProblemSource.LEETCODE:
-      return `https://leetcode.com/problems/${problemId}/`;
+      return `https://leetcode.com/problems/${contestProbId || problemId}/`;
 
     case ProblemSource.CODEFORCES: {
       const match = problemId.match(/^(\d+)([A-Za-z]\d?)$/);
