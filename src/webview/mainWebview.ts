@@ -2074,46 +2074,22 @@ label { font-size: 12px; display: flex; align-items: center; gap: var(--ctk-spac
     if (titleEls.length === 0) return;
     state._randomTranslated = !state._randomTranslated;
     if (state._randomTranslated && Object.keys(state._randomTranslatedTitles || {}).length === 0) {
-      // Save originals and request translation for titles
+      // Save originals from DOM (as-is from API)
       var originals = {};
       titleEls.forEach(function(el, i) { originals[i] = el.textContent; });
       state._randomOriginalTitles = originals;
-      // Save original tags from DOM and build translated tags locally using cached tag data
       var originalTags = {};
       tagEls.forEach(function(el, i) { originalTags[i] = el.textContent; });
-      // Build tag translations locally using cached tag lookup
-      var tableData = $('#randomResultsList')._ptableData;
-      var translatedTags = {};
-      if (tableData && tableData.items) {
-        // Build EN->KO lookup once from cached tag data
-        var lookup = {};
-        ['CODEFORCES', 'LEETCODE'].forEach(function(src) {
-          var cached = state._cachedTags[src];
-          if (cached) {
-            cached.forEach(function(tg) {
-              if (tg.en && tg.ko) { lookup[tg.en.toLowerCase()] = tg.ko; }
-            });
-          }
-        });
-        tagEls.forEach(function(el, i) {
-          var item = tableData.items[i];
-          if (item && item.tags && Array.isArray(item.tags)) {
-            var koTags = item.tags.map(function(tag) { return lookup[tag.toLowerCase()] || tag; });
-            var enTags = (item.tagsEn && item.tagsEn.length > 0) ? item.tagsEn : item.tags;
-            // Original view is KO (default API returns KO titles), so translated view is EN
-            translatedTags[i] = enTags.join(', ');
-            // Store KO version as original
-            originalTags[i] = koTags.join(', ');
-          }
-        });
-      }
       state._randomOriginalTags = originalTags;
-      state._randomTranslatedTags = translatedTags;
       $('#randomTranslateBtn').textContent = '...';
       $('#randomTranslateBtn').disabled = true;
-      // Only need to translate titles remotely; tags are handled locally
+      // Translate both titles and tags remotely
       var titleBatch = Object.values(originals).join('\\n');
+      var tagBatch = Object.values(originalTags).join('\\n');
       vscode.postMessage({ command: 'translateBatch', data: { text: titleBatch, context: 'random' } });
+      if (tagBatch.trim()) {
+        vscode.postMessage({ command: 'translateBatch', data: { text: tagBatch, context: 'randomTags' } });
+      }
     } else {
       applyRandomTranslation();
     }
@@ -2346,13 +2322,12 @@ label { font-size: 12px; display: flex; align-items: center; gap: var(--ctk-spac
         tdDiff.textContent = p.difficulty || (p.level !== undefined ? 'Lv.' + p.level : '');
         tr.appendChild(tdDiff);
 
-        // Tags — translate CF/LC English tags to Korean if available
+        // Tags — show as-is from API (no auto-translate; translate button handles it)
         var tdTags = document.createElement('td');
         tdTags.className = 'col-tags';
         var tagStr = '';
         if (p.tags && Array.isArray(p.tags)) {
-          var displayTags = (state.uiLang === 'KO') ? translateTags(p.tags) : (p.tagsEn && p.tagsEn.length > 0 ? p.tagsEn : p.tags);
-          tagStr = displayTags.join(', ');
+          tagStr = p.tags.join(', ');
         } else if (p.tags && typeof p.tags === 'string') {
           tagStr = p.tags;
         }
@@ -3538,6 +3513,11 @@ label { font-size: 12px; display: flex; align-items: center; gap: var(--ctk-spac
           translatedList.forEach(function(t, i) { map[i] = t.trim(); });
           state._randomTranslatedTitles = map;
           $('#randomTranslateBtn').disabled = false;
+          applyRandomTranslation();
+        } else if (ctx === 'randomTags') {
+          var tmap = {};
+          translatedList.forEach(function(t, i) { tmap[i] = t.trim(); });
+          state._randomTranslatedTags = tmap;
           applyRandomTranslation();
         } else if (ctx === 'search') {
           var smap = {};

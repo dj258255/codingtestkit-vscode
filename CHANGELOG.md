@@ -1,6 +1,6 @@
 # Changelog
 
-## [1.0.3] - 2026-03-17
+## [1.0.4] - 2026-03-17
 
 ### Fixed
 
@@ -9,7 +9,7 @@
 - **Template Save**: Fix template saving wrong content — now correctly saves code from the active VS Code editor instead of the CodeMirror preview.
 - **Debug Output**: Fix stderr textarea not filling full width — now expands horizontally and is vertically resizable.
 - **Focus Alert**: Fix webview click (e.g. clicking problem view) being detected as focus loss — now uses VS Code's `onDidChangeWindowState` to only detect actual window focus loss (Alt+Tab, switching apps).
-- **Random Problem Translation**: Fix EN/KO toggle not translating tags — tags were only translated via local cache which lacked Korean data for LeetCode. Now uses remote translation for both titles and tags consistently.
+- **Random Problem Translation**: Initial display now shows API original as-is (no auto-translate). EN/KO button translates both titles and tags together via remote API for full consistency across all platforms.
 
 ### Improved
 
