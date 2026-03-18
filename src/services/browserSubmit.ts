@@ -96,6 +96,17 @@ function getCookieUrl(source: ProblemSource): string {
   }
 }
 
+function getCookieDomain(source: ProblemSource): string {
+  switch (source) {
+    case ProblemSource.BAEKJOON: return '.acmicpc.net';
+    case ProblemSource.PROGRAMMERS: return '.programmers.co.kr';
+    case ProblemSource.SWEA: return '.swexpertacademy.com';
+    case ProblemSource.LEETCODE: return '.leetcode.com';
+    case ProblemSource.CODEFORCES: return '.codeforces.com';
+    default: return '';
+  }
+}
+
 // --- Code injection per platform ---
 
 async function injectCodeBaekjoon(page: any, code: string, language: Language): Promise<boolean> {
@@ -431,14 +442,26 @@ export async function browserSubmit(
     const pages = await browser.pages();
     const page = pages[0] || await browser.newPage();
 
-    // Set cookies before navigating
+    // Navigate to domain first, then inject cookies via CDP, then go to submit page
     const cookieUrl = getCookieUrl(source);
-    const cookieObjects = parseCookieString(cookies, cookieUrl);
-    if (cookieObjects.length > 0) {
-      await page.setCookie(...cookieObjects);
-    }
+    const cookieDomain = getCookieDomain(source);
+    await page.goto(cookieUrl, { waitUntil: 'domcontentloaded', timeout: 15000 }).catch(() => {});
 
-    // Navigate to submit page
+    const cdp = await page.createCDPSession();
+    const parsedCookies = parseCookieString(cookies, cookieUrl);
+    for (const c of parsedCookies) {
+      await cdp.send('Network.setCookie', {
+        name: c.name,
+        value: c.value,
+        domain: cookieDomain,
+        path: '/',
+        secure: cookieUrl.startsWith('https'),
+        httpOnly: false,
+      });
+    }
+    await cdp.detach();
+
+    // Navigate to submit page (now with cookies set)
     const submitUrl = getSubmitUrl(source, problemId, language, contestProbId);
     await page.goto(submitUrl, { waitUntil: 'networkidle2', timeout: 20000 });
 
