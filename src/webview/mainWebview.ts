@@ -3554,7 +3554,7 @@ label { font-size: 12px; display: flex; align-items: center; gap: var(--ctk-spac
 
       case 'settingsLoaded': {
         var s = msg.data;
-        if (s.language) { $('#settingLang').value = s.language; state.uiLang = s.language; }
+        if (s.language) { $('#settingLang').value = s.language; state.uiLang = s.language; applyI18n(); }
         if (s.autoComplete !== undefined) { $('#settingAutoComplete').checked = !s.autoComplete; }
         if (s.syntaxHighlightingOff !== undefined) {
           $('#settingSyntaxOff').checked = s.syntaxHighlightingOff;

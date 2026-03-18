@@ -382,11 +382,6 @@ export class CodingTestKitViewProvider implements vscode.WebviewViewProvider {
     }
 
     const source = this._currentProblem.source;
-    const cookies = await getCookies(source);
-    if (!cookies) {
-      this.sendCommand('error', { message: t('먼저 로그인해주세요.', 'Please login first.') });
-      return;
-    }
 
     const editor = vscode.window.activeTextEditor;
     if (!editor) {
@@ -394,33 +389,59 @@ export class CodingTestKitViewProvider implements vscode.WebviewViewProvider {
       return;
     }
 
-    const code = editor.document.getText();
-    this.sendCommand('info', { message: t('브라우저를 여는 중...', 'Opening browser...') });
-
-    const result = await browserSubmit(
-      source,
-      this._currentProblem.id,
-      code,
-      this._currentLanguage,
-      cookies,
-      this._currentProblem.contestProbId,
+    const filePath = editor.document.uri.fsPath;
+    const fileName = path.basename(filePath);
+    const confirm = await vscode.window.showInformationMessage(
+      t(`${fileName} 파일을 ${source}에 제출하시겠습니까?\n${filePath}`,
+        `Submit ${fileName} to ${source}?\n${filePath}`),
+      { modal: true },
+      t('제출', 'Submit'),
     );
+    if (!confirm) { return; }
 
-    if (result.error === 'NO_BROWSER' || result.error === 'NO_PUPPETEER') {
-      // Fallback: API submission for BOJ/Programmers/SWEA, browser URL for LeetCode/Codeforces
-      await this._fallbackSubmit(source, this._currentProblem.id, code, cookies);
-    } else if (result.success && result.error === 'INJECT_FAILED') {
-      this.sendCommand('info', { message: t('브라우저가 열렸습니다. 코드를 직접 붙여넣고 제출해주세요.', 'Browser opened. Please paste code manually and submit.') });
-    } else if (result.success) {
-      this.sendCommand('info', { message: t('코드가 자동 입력되었습니다. 브라우저에서 확인 후 제출해주세요.', 'Code auto-filled. Please review and submit in the browser.') });
-      // Auto push to GitHub if enabled
-      const autoPush = await getAutoPushEnabled();
-      if (autoPush && this._currentProblem) {
-        await this._pushToGitHub();
+    const code = editor.document.getText();
+
+    // All platforms: open submit page in user's default browser + copy code to clipboard
+    await vscode.env.clipboard.writeText(code);
+
+    let url: string;
+    switch (source) {
+      case ProblemSource.BAEKJOON:
+        url = `https://www.acmicpc.net/submit/${this._currentProblem.id}`;
+        break;
+      case ProblemSource.PROGRAMMERS: {
+        const progLang = { JAVA: 'java', PYTHON: 'python3', CPP: 'cpp', KOTLIN: 'kotlin', JAVASCRIPT: 'javascript' }[this._currentLanguage] || '';
+        url = `https://school.programmers.co.kr/learn/courses/30/lessons/${this._currentProblem.id}${progLang ? '?language=' + progLang : ''}`;
+        break;
       }
-    } else {
-      this.sendCommand('error', { message: result.message || t('브라우저 열기에 실패했습니다.', 'Failed to open browser.') });
+      case ProblemSource.SWEA:
+        url = `https://swexpertacademy.com/main/code/problem/problemDetail.do?contestProbId=${this._currentProblem.contestProbId || this._currentProblem.id}`;
+        break;
+      case ProblemSource.LEETCODE: {
+        const slug = this._currentProblem.contestProbId || this._currentProblem.id;
+        const lcLang = { JAVA: 'java', PYTHON: 'python3', CPP: 'cpp', KOTLIN: 'kotlin', JAVASCRIPT: 'javascript' }[this._currentLanguage] || '';
+        url = `https://leetcode.com/problems/${slug}/${lcLang ? '?lang=' + lcLang : ''}`;
+        break;
+      }
+      case ProblemSource.CODEFORCES: {
+        const match = this._currentProblem.id.match(/^(\d+)([A-Za-z]\d?)$/);
+        url = match
+          ? `https://codeforces.com/contest/${match[1]}/submit/${match[2]}`
+          : `https://codeforces.com/problemset/submit`;
+        break;
+      }
+      default:
+        this.sendCommand('error', { message: t('지원하지 않는 플랫폼입니다.', 'Unsupported platform.') });
+        return;
     }
+
+    await vscode.env.openExternal(vscode.Uri.parse(url));
+    this.sendCommand('info', {
+      message: t(
+        '✓ 코드가 클립보드에 복사되었습니다. 브라우저에서 붙여넣고 제출하세요.',
+        '✓ Code copied to clipboard. Paste and submit in the browser.'
+      ),
+    });
   }
 
   private async _fallbackSubmit(source: ProblemSource, problemId: string, code: string, cookies: string): Promise<void> {
@@ -1057,8 +1078,25 @@ export class CodingTestKitViewProvider implements vscode.WebviewViewProvider {
       }
     } else if (data.key === 'diagnosticsOff') {
       await config.update(data.key, data.value, vscode.ConfigurationTarget.Global);
+      const editorConfig = vscode.workspace.getConfiguration('editor');
       const problemsConfig = vscode.workspace.getConfiguration('problems');
+      // Hide problems panel
       await problemsConfig.update('visibility', !data.value, vscode.ConfigurationTarget.Global);
+      // Hide unused code graying
+      await editorConfig.update('showUnused', !data.value, vscode.ConfigurationTarget.Global);
+      // Hide lightbulb suggestions
+      await editorConfig.update('lightbulb.enabled', data.value ? 'off' : 'on', vscode.ConfigurationTarget.Global);
+      // Exclude problems folder from Java LSP to prevent duplicate class errors
+      const javaConfig = vscode.workspace.getConfiguration('java');
+      const currentExclusions: string[] = javaConfig.get('import.exclusions') || [];
+      const problemsPattern = '**/problems/**';
+      if (data.value) {
+        if (!currentExclusions.includes(problemsPattern)) {
+          await javaConfig.update('import.exclusions', [...currentExclusions, problemsPattern], vscode.ConfigurationTarget.Global).catch(() => {});
+        }
+      } else {
+        await javaConfig.update('import.exclusions', currentExclusions.filter((e: string) => e !== problemsPattern), vscode.ConfigurationTarget.Global).catch(() => {});
+      }
     } else if (data.key === 'codeLensOff') {
       await config.update(data.key, data.value, vscode.ConfigurationTarget.Global);
       const editorConfig = vscode.workspace.getConfiguration('editor');

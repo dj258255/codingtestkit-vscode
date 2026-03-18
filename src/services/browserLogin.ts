@@ -1,9 +1,19 @@
 import * as fs from 'fs';
+import * as os from 'os';
 import * as path from 'path';
 import { execFileSync } from 'child_process';
 import * as puppeteer from 'puppeteer-core';
 import { ProblemSource } from '../models/models';
 import { getLoginUrl } from './authService';
+
+// Shared browser profile directory — cookies persist between login and submit
+export function getBrowserProfileDir(): string {
+  const dir = path.join(os.homedir(), '.codingtestkit', 'chromium-profile');
+  if (!fs.existsSync(dir)) {
+    fs.mkdirSync(dir, { recursive: true });
+  }
+  return dir;
+}
 
 export interface BrowserLoginResult {
   success: boolean;
@@ -231,6 +241,7 @@ export async function browserLogin(
         '--no-first-run',
         '--no-default-browser-check',
         '--disable-extensions',
+        '--disable-blink-features=AutomationControlled',
       ],
     });
 

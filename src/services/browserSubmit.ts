@@ -1,5 +1,5 @@
 import { ProblemSource, Language, LanguageInfo } from '../models/models';
-import { detectChromiumBrowser } from './browserLogin';
+import { detectChromiumBrowser, getBrowserProfileDir } from './browserLogin';
 
 export interface BrowserSubmitResult {
   success: boolean;
@@ -436,32 +436,28 @@ export async function browserSubmit(
         '--no-first-run',
         '--no-default-browser-check',
         '--disable-extensions',
+        '--disable-blink-features=AutomationControlled',
       ],
     });
 
     const pages = await browser.pages();
     const page = pages[0] || await browser.newPage();
 
-    // Navigate to domain first, then inject cookies via CDP, then go to submit page
+    // Set cookies BEFORE navigation using url field (works from about:blank)
     const cookieUrl = getCookieUrl(source);
-    const cookieDomain = getCookieDomain(source);
-    await page.goto(cookieUrl, { waitUntil: 'domcontentloaded', timeout: 15000 }).catch(() => {});
-
-    const cdp = await page.createCDPSession();
     const parsedCookies = parseCookieString(cookies, cookieUrl);
-    for (const c of parsedCookies) {
-      await cdp.send('Network.setCookie', {
+    if (parsedCookies.length > 0) {
+      await page.setCookie(...parsedCookies.map(c => ({
         name: c.name,
         value: c.value,
-        domain: cookieDomain,
+        url: cookieUrl,
         path: '/',
-        secure: cookieUrl.startsWith('https'),
-        httpOnly: false,
-      });
+        httpOnly: true,
+        secure: true,
+      })));
     }
-    await cdp.detach();
 
-    // Navigate to submit page (now with cookies set)
+    // Navigate to submit page (cookies sent with request → server sees logged-in session)
     const submitUrl = getSubmitUrl(source, problemId, language, contestProbId);
     await page.goto(submitUrl, { waitUntil: 'networkidle2', timeout: 20000 });
 

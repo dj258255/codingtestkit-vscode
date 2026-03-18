@@ -1,11 +1,15 @@
 # Changelog
 
-## [1.0.8] - 2026-03-18
+## [1.0.9] - 2026-03-18
 
 ### Fixed
 
 - **LeetCode Language Auto-Select**: Fix language not being auto-selected when submitting on LeetCode — now uses URL `?lang=java` parameter instead of unreliable DOM button matching. All platforms now correctly auto-select the configured language on submit.
-- **Browser Submit Login**: Fix not being logged in when browser opens for submit — now navigates to the target domain first, then injects cookies via CDP, then opens the submit page. Applies to all platforms (BOJ, Programmers, SWEA, LeetCode, Codeforces).
+- **Submit Flow**: Replaced Puppeteer browser submit with default browser (already logged in) + clipboard copy for all platforms. Submit button now shows file path confirmation dialog before opening.
+- **Diagnostics OFF**: Fix "오류 검사 끄기" not fully hiding editor diagnostics — now disables unused import graying (`editor.showUnused`), lightbulb suggestions (`editor.lightbulb.enabled`), problems panel visibility, and excludes `**/problems/**` from Java LSP (`java.import.exclusions`) to prevent "The type Solution is already defined" duplicate class errors.
+- **i18n Initial Load**: Fix settings tab showing English on first load when Korean is selected — now calls `applyI18n()` immediately when settings are loaded.
+- **Cloudflare Bot Detection**: Add `--disable-blink-features=AutomationControlled` flag to Puppeteer launch for login, preventing Cloudflare bot detection.
+- **VSIX Cleanup**: Remove unnecessary files from package (`.claude/`, `.playwright-mcp/`, `firebase-debug.log`, `.github/`).
 
 ## [1.0.5] - 2026-03-17
 
