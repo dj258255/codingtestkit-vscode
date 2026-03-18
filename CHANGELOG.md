@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.1.0] - 2026-03-18
+
+### Fixed
+
+- **Syntax Highlighting Toggle**: Fix "구문 강조 끄기" toggle not applying immediately — now uses same top-level `tokenColorCustomizations` override as exam mode for instant effect.
+
+### Improved
+
+- **README**: Add GIF demo animations for Fetch & Submit, Random Problem Picker, Code Templates, Timer, and Exam Mode.
+
 ## [1.0.9] - 2026-03-18
 
 ### Fixed
