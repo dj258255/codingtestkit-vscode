@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.0.6] - 2026-03-18
+
+### Fixed
+
+- **LeetCode Language Auto-Select**: Fix language not being auto-selected when submitting on LeetCode — now uses URL `?lang=java` parameter instead of unreliable DOM button matching. All platforms now correctly auto-select the configured language on submit.
+
 ## [1.0.5] - 2026-03-17
 
 ### Fixed

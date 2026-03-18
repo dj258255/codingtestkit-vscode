@@ -65,8 +65,11 @@ function getSubmitUrl(source: ProblemSource, problemId: string, language?: Langu
     case ProblemSource.SWEA:
       return `https://swexpertacademy.com/main/code/problem/problemDetail.do?contestProbId=${contestProbId || problemId}`;
 
-    case ProblemSource.LEETCODE:
-      return `https://leetcode.com/problems/${contestProbId || problemId}/`;
+    case ProblemSource.LEETCODE: {
+      const lcSlug = LEETCODE_LANG_SLUG[language!] || '';
+      const lcLangParam = lcSlug ? `?lang=${lcSlug}` : '';
+      return `https://leetcode.com/problems/${contestProbId || problemId}/${lcLangParam}`;
+    }
 
     case ProblemSource.CODEFORCES: {
       const match = problemId.match(/^(\d+)([A-Za-z]\d?)$/);
