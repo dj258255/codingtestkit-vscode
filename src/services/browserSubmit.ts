@@ -35,7 +35,7 @@ const PROGRAMMERS_LANG_SLUG: Record<Language, string> = {
 
 // --- Cookie parsing ---
 
-function parseCookieString(cookieStr: string, domain: string): Array<{ name: string; value: string; domain: string }> {
+function parseCookieString(cookieStr: string, url: string): Array<{ name: string; value: string; url: string; path: string }> {
   if (!cookieStr) { return []; }
   return cookieStr.split(';').map(part => {
     const trimmed = part.trim();
@@ -44,9 +44,10 @@ function parseCookieString(cookieStr: string, domain: string): Array<{ name: str
     return {
       name: trimmed.substring(0, eqIdx).trim(),
       value: trimmed.substring(eqIdx + 1).trim(),
-      domain,
+      url,
+      path: '/',
     };
-  }).filter(Boolean) as Array<{ name: string; value: string; domain: string }>;
+  }).filter(Boolean) as Array<{ name: string; value: string; url: string; path: string }>;
 }
 
 // --- Submit URL builders ---
@@ -84,13 +85,13 @@ function getSubmitUrl(source: ProblemSource, problemId: string, language?: Langu
   }
 }
 
-function getCookieDomain(source: ProblemSource): string {
+function getCookieUrl(source: ProblemSource): string {
   switch (source) {
-    case ProblemSource.BAEKJOON: return '.acmicpc.net';
-    case ProblemSource.PROGRAMMERS: return '.programmers.co.kr';
-    case ProblemSource.SWEA: return '.swexpertacademy.com';
-    case ProblemSource.LEETCODE: return '.leetcode.com';
-    case ProblemSource.CODEFORCES: return '.codeforces.com';
+    case ProblemSource.BAEKJOON: return 'https://www.acmicpc.net';
+    case ProblemSource.PROGRAMMERS: return 'https://school.programmers.co.kr';
+    case ProblemSource.SWEA: return 'https://swexpertacademy.com';
+    case ProblemSource.LEETCODE: return 'https://leetcode.com';
+    case ProblemSource.CODEFORCES: return 'https://codeforces.com';
     default: return '';
   }
 }
@@ -431,8 +432,8 @@ export async function browserSubmit(
     const page = pages[0] || await browser.newPage();
 
     // Set cookies before navigating
-    const cookieDomain = getCookieDomain(source);
-    const cookieObjects = parseCookieString(cookies, cookieDomain);
+    const cookieUrl = getCookieUrl(source);
+    const cookieObjects = parseCookieString(cookies, cookieUrl);
     if (cookieObjects.length > 0) {
       await page.setCookie(...cookieObjects);
     }
