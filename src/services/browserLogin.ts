@@ -98,11 +98,6 @@ export function isLoggedInUrl(source: ProblemSource, url: string): boolean {
   const lowerUrl = url.toLowerCase();
 
   switch (source) {
-    case ProblemSource.BAEKJOON:
-      return lowerUrl.includes('acmicpc.net')
-        && !lowerUrl.includes('/login')
-        && !lowerUrl.includes('/signin');
-
     case ProblemSource.PROGRAMMERS:
       return lowerUrl.includes('programmers.co.kr')
         && !lowerUrl.includes('/sign_in')
@@ -132,8 +127,6 @@ export function isLoggedInUrl(source: ProblemSource, url: string): boolean {
 
 function getRelevantDomains(source: ProblemSource): string[] {
   switch (source) {
-    case ProblemSource.BAEKJOON:
-      return ['acmicpc.net'];
     case ProblemSource.PROGRAMMERS:
       return ['programmers.co.kr'];
     case ProblemSource.SWEA:
@@ -152,22 +145,6 @@ function getRelevantDomains(source: ProblemSource): string[] {
 async function extractUsernameFromPage(source: ProblemSource, page: any): Promise<string> {
   try {
     switch (source) {
-      case ProblemSource.BAEKJOON:
-        return await page.evaluate(() => {
-          // Try a.username JS variable
-          if (typeof (window as any).a?.username === 'string' && (window as any).a.username) {
-            return (window as any).a.username;
-          }
-          // Try loginbar link
-          const link = document.querySelector('.loginbar a[href^="/user/"]');
-          if (link) {
-            const match = link.getAttribute('href')?.match(/\/user\/([^/?#]+)/);
-            if (match) { return match[1]; }
-            return link.textContent?.trim() || '';
-          }
-          return '';
-        });
-
       case ProblemSource.PROGRAMMERS:
         return await page.evaluate(() => {
           for (const sel of ['.header-user-name', '.user-name', '.nav-user-name']) {

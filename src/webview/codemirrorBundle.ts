@@ -10,7 +10,7 @@ import { javascript } from '@codemirror/lang-javascript';
 import { oneDarkTheme, oneDarkHighlightStyle } from '@codemirror/theme-one-dark';
 
 type LangKey = 'JAVA' | 'PYTHON' | 'CPP' | 'KOTLIN' | 'JAVASCRIPT';
-type PlatformKey = 'BAEKJOON' | 'PROGRAMMERS' | 'SWEA' | 'LEETCODE' | 'CODEFORCES';
+type PlatformKey = 'PROGRAMMERS' | 'SWEA' | 'LEETCODE' | 'CODEFORCES';
 
 const langExtensions: Record<LangKey, () => any> = {
   JAVA: java,
@@ -32,7 +32,7 @@ function isDarkTheme(): boolean {
 
 // --- Pre-built HighlightStyle constants for each platform × theme ---
 
-// Programmers / Baekjoon / SWEA — dark (tomorrow-night-bright, actual Programmers colors)
+// Programmers / SWEA — dark (tomorrow-night-bright, actual Programmers colors)
 const programmersDark = HighlightStyle.define([
   { tag: [t.keyword, t.operatorKeyword], color: '#C38FE5' },
   { tag: t.string, color: '#E7C547' },
@@ -48,7 +48,7 @@ const programmersDark = HighlightStyle.define([
   { tag: t.meta, color: '#EAEAEA' },
 ]);
 
-// Programmers / Baekjoon / SWEA — light (eclipse customized, actual Programmers colors)
+// Programmers / SWEA — light (eclipse customized, actual Programmers colors)
 const programmersLight = HighlightStyle.define([
   { tag: [t.keyword, t.operatorKeyword], color: '#9C27B0' },
   { tag: t.string, color: '#2A00FF' },
@@ -128,7 +128,6 @@ const codeforcesLight = HighlightStyle.define([
 
 const platformStyles: Record<PlatformKey, { dark: HighlightStyle; light: HighlightStyle }> = {
   PROGRAMMERS: { dark: programmersDark, light: programmersLight },
-  BAEKJOON:    { dark: programmersDark, light: programmersLight },
   SWEA:        { dark: programmersDark, light: programmersLight },
   LEETCODE:    { dark: leetcodeDark, light: leetcodeLight },
   CODEFORCES:  { dark: codeforcesDark, light: codeforcesLight },
@@ -138,7 +137,7 @@ const platformStyles: Record<PlatformKey, { dark: HighlightStyle; light: Highlig
 
 let view: EditorView | null = null;
 let currentLang: LangKey = 'JAVA';
-let currentPlatform: PlatformKey = 'BAEKJOON';
+let currentPlatform: PlatformKey = 'PROGRAMMERS';
 
 function getHighlightStyle(): HighlightStyle {
   const dark = isDarkTheme();

@@ -31,7 +31,7 @@ export function activate(context: vscode.ExtensionContext) {
   const provider = new CodingTestKitViewProvider(context);
 
   // Register URI handler for auto-login callback
-  // URI format: vscode://codingtestkit.codingtestkit/auth?source=BAEKJOON&cookies=...
+  // URI format: vscode://codingtestkit.codingtestkit/auth?source=PROGRAMMERS&cookies=...
   context.subscriptions.push(
     vscode.window.registerUriHandler({
       handleUri(uri: vscode.Uri) {

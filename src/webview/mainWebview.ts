@@ -727,7 +727,6 @@ label { font-size: 12px; display: flex; align-items: center; gap: var(--ctk-spac
   <!-- Row 1: Platform + Language + Login -->
   <div class="row">
     <select id="platformSelect">
-      <option value="BAEKJOON">백준</option>
       <option value="PROGRAMMERS">프로그래머스</option>
       <option value="SWEA">SWEA</option>
       <option value="LEETCODE">LeetCode</option>
@@ -1063,7 +1062,7 @@ label { font-size: 12px; display: flex; align-items: center; gap: var(--ctk-spac
   // ===== STATE =====
   let state = {
     currentTab: 'tabProblem',
-    platform: 'BAEKJOON',
+    platform: 'PROGRAMMERS',
     language: 'JAVA',
     problem: null,
     testCases: [],
@@ -1179,14 +1178,12 @@ label { font-size: 12px; display: flex; align-items: center; gap: var(--ctk-spac
     if (!el || !state.problem) return;
     var p = state.problem;
     var sourceNames = {
-      BAEKJOON: state.uiLang === 'KO' ? '백준 온라인 저지' : 'Baekjoon Online Judge',
       PROGRAMMERS: state.uiLang === 'KO' ? '프로그래머스 코딩 테스트 연습' : 'Programmers Coding Test Practice',
       SWEA: 'SW Expert Academy',
       LEETCODE: 'LeetCode',
       CODEFORCES: 'Codeforces'
     };
     var sourceUrls = {
-      BAEKJOON: 'https://www.acmicpc.net/problem/' + p.id,
       PROGRAMMERS: 'https://school.programmers.co.kr/learn/courses/30/lessons/' + p.id,
       SWEA: 'https://swexpertacademy.com/main/code/problem/problemDetail.do?contestProbId=' + (p.contestProbId || p.id),
       LEETCODE: 'https://leetcode.com/problems/' + p.id + '/',
@@ -1369,14 +1366,7 @@ label { font-size: 12px; display: flex; align-items: center; gap: var(--ctk-spac
     if (p === 'LEETCODE') { requestTagsIfNeeded('LEETCODE'); }
     else if (p === 'CODEFORCES') { requestTagsIfNeeded('CODEFORCES'); }
 
-    if (p === 'BAEKJOON') {
-      html += '<div class="rf-row">';
-      html += '<span class="rf-label">' + t('정렬','Sort') + '</span>';
-      html += '<select id="sfSort" class="rf-select"><option value="id">' + t('번호순','By Number') + '</option><option value="level">' + t('난이도순','By Difficulty') + '</option><option value="title">' + t('제목순','By Title') + '</option><option value="solved">' + t('맞은 사람순','By Solved') + '</option></select>';
-      html += '<span class="rf-label" style="min-width:auto;">' + t('풀이 필터','Solve') + '</span>';
-      html += '<select id="sfSolveFilter" class="rf-select"><option value="0">' + t('전체','All') + '</option><option value="1">' + t('푼 문제 제외','Exclude Solved') + '</option><option value="2">' + t('푼 문제만','Only Solved') + '</option></select>';
-      html += '</div>';
-    } else if (p === 'SWEA') {
+    if (p === 'SWEA') {
       html += '<div class="rf-row"><span class="rf-label">' + t('난이도','Difficulty') + '</span><div class="rf-chips" id="sfSweaLevels">';
       ['D1','D2','D3','D4','D5','D6','D7','D8'].forEach(function(d){ html += '<span class="rf-chip" data-level="'+d+'">'+d+'</span>'; });
       html += '</div></div>';
@@ -1500,11 +1490,7 @@ label { font-size: 12px; display: flex; align-items: center; gap: var(--ctk-spac
     var p = state.platform;
     var c = $('#searchFilters');
 
-    if (p === 'BAEKJOON') {
-      data.sort = (c.querySelector('#sfSort') || {}).value || 'id';
-      var sf = parseInt((c.querySelector('#sfSolveFilter') || {}).value || '0', 10);
-      data.solveFilter = sf;
-    } else if (p === 'SWEA') {
+    if (p === 'SWEA') {
       var levels = [];
       c.querySelectorAll('#sfSweaLevels .rf-chip.selected').forEach(function(ch){ levels.push(ch.getAttribute('data-level')); });
       data.problemLevels = levels.length > 0 ? levels : undefined;
@@ -1577,32 +1563,6 @@ label { font-size: 12px; display: flex; align-items: center; gap: var(--ctk-spac
 
   // ─── Random modal: platform-specific filters ───
   var RANDOM_CFG = {
-    BOJ_TIERS: [
-      'Bronze V','Bronze IV','Bronze III','Bronze II','Bronze I',
-      'Silver V','Silver IV','Silver III','Silver II','Silver I',
-      'Gold V','Gold IV','Gold III','Gold II','Gold I',
-      'Platinum V','Platinum IV','Platinum III','Platinum II','Platinum I',
-      'Diamond V','Diamond IV','Diamond III','Diamond II','Diamond I',
-      'Ruby V','Ruby IV','Ruby III','Ruby II','Ruby I'
-    ],
-    BOJ_TIER_CODES: [
-      'b5','b4','b3','b2','b1','s5','s4','s3','s2','s1',
-      'g5','g4','g3','g2','g1','p5','p4','p3','p2','p1',
-      'd5','d4','d3','d2','d1','r5','r4','r3','r2','r1'
-    ],
-    BOJ_TAGS: [
-      {id:'math',ko:'수학',en:'Math'},{id:'implementation',ko:'구현',en:'Implementation'},
-      {id:'dp',ko:'DP',en:'DP'},{id:'graphs',ko:'그래프',en:'Graphs'},
-      {id:'greedy',ko:'그리디',en:'Greedy'},{id:'sorting',ko:'정렬',en:'Sorting'},
-      {id:'string',ko:'문자열',en:'String'},{id:'bruteforcing',ko:'브루트포스',en:'Brute Force'},
-      {id:'binary_search',ko:'이분 탐색',en:'Binary Search'},{id:'bfs',ko:'BFS',en:'BFS'},
-      {id:'dfs',ko:'DFS',en:'DFS'},{id:'trees',ko:'트리',en:'Trees'},
-      {id:'data_structures',ko:'자료구조',en:'Data Structures'},{id:'shortest_path',ko:'최단경로',en:'Shortest Path'},
-      {id:'backtracking',ko:'백트래킹',en:'Backtracking'},{id:'two_pointer',ko:'투 포인터',en:'Two Pointer'},
-      {id:'divide_and_conquer',ko:'분할정복',en:'Divide & Conquer'},{id:'segtree',ko:'세그먼트 트리',en:'Segment Tree'},
-      {id:'union_find',ko:'유니온 파인드',en:'Union Find'},{id:'geometry',ko:'기하학',en:'Geometry'},
-      {id:'number_theory',ko:'정수론',en:'Number Theory'}
-    ],
     LC_TAGS: [
       {id:'array',en:'Array'},{id:'string',en:'String'},{id:'hash-table',en:'Hash Table'},
       {id:'dynamic-programming',en:'DP'},{id:'math',en:'Math'},{id:'sorting',en:'Sorting'},
@@ -1628,7 +1588,6 @@ label { font-size: 12px; display: flex; align-items: center; gap: var(--ctk-spac
   state._randomSelectedTags = [];
   state._randomSelectedLevels = [];
 
-  function getBojTags() { return state._cachedTags['BAEKJOON'] || RANDOM_CFG.BOJ_TAGS; }
   function getLcTags() { return state._cachedTags['LEETCODE'] || RANDOM_CFG.LC_TAGS; }
   function getCfTags() { return state._cachedTags['CODEFORCES'] || RANDOM_CFG.CF_TAGS; }
 
@@ -1647,64 +1606,10 @@ label { font-size: 12px; display: flex; align-items: center; gap: var(--ctk-spac
     var html = '';
 
     // Request dynamic tags if not cached
-    if (p === 'BAEKJOON') { requestTagsIfNeeded('BAEKJOON'); }
-    else if (p === 'LEETCODE') { requestTagsIfNeeded('LEETCODE'); }
+    if (p === 'LEETCODE') { requestTagsIfNeeded('LEETCODE'); }
     else if (p === 'CODEFORCES') { requestTagsIfNeeded('CODEFORCES'); }
 
-    if (p === 'BAEKJOON') {
-      html += '<div class="rf-row">';
-      html += '<span class="rf-label">' + t('기준','Criteria') + '</span>';
-      html += '<select id="rfBojMode" class="rf-select"><option value="tier">' + t('난이도 (티어)','Tier') + '</option><option value="class">' + t('클래스','Class') + '</option></select>';
-      html += '</div>';
-      html += '<div class="rf-row" id="rfBojTierRow">';
-      html += '<span class="rf-label"></span>';
-      html += '<select id="rfBojTierFrom" class="rf-select">';
-      RANDOM_CFG.BOJ_TIERS.forEach(function(n,i){ html += '<option value="'+i+'">'+n+'</option>'; });
-      html += '</select>';
-      html += '<span>~</span>';
-      html += '<select id="rfBojTierTo" class="rf-select">';
-      RANDOM_CFG.BOJ_TIERS.forEach(function(n,i){ html += '<option value="'+i+'"'+(i===29?' selected':'')+'>'+n+'</option>'; });
-      html += '</select>';
-      html += '</div>';
-      html += '<div class="rf-row" id="rfBojClassRow" style="display:none;">';
-      html += '<span class="rf-label"></span>';
-      html += '<select id="rfBojClassFrom" class="rf-select">';
-      for(var ci=1;ci<=10;ci++) html += '<option value="'+ci+'">Class '+ci+'</option>';
-      html += '</select>';
-      html += '<span>~</span>';
-      html += '<select id="rfBojClassTo" class="rf-select">';
-      for(var ci2=1;ci2<=10;ci2++) html += '<option value="'+ci2+'"'+(ci2===10?' selected':'')+'>Class '+ci2+'</option>';
-      html += '</select>';
-      html += '</div>';
-      html += '<div class="rf-row"><span class="rf-label">' + t('알고리즘','Tags') + '</span>';
-      html += '<div class="tag-selector" id="rfBojTagSelector">';
-      html += '<div class="tag-selected-chips" id="rfBojTagChips"></div>';
-      html += '<div class="tag-dropdown-wrap"><button type="button" class="tag-add-btn" id="rfBojTagAddBtn">+</button>';
-      html += '<div class="tag-dropdown" id="rfBojTagDropdown">';
-      html += '<label><input type="checkbox" data-toggle-all="true"/> ' + t('전체 선택 / 해제','Select / Deselect All') + '</label>';
-      html += '<div class="tag-dd-sep"></div>';
-      getBojTags().forEach(function(tag){
-        var displayName = t(tag.ko, tag.en);
-        var altName = t(tag.en, tag.ko);
-        var label = displayName !== altName ? displayName + ' <span style="opacity:0.5;font-size:10px;width:100%;padding-left:20px;">(' + altName + ')</span>' : displayName;
-        html += '<label><input type="checkbox" data-tag="'+tag.id+'"/> ' + label + '</label>';
-      });
-      html += '</div></div></div></div>';
-      html += '<div class="rf-row">';
-      html += '<span class="rf-label">' + t('개수','Count') + '</span><input type="number" id="rfCount" class="rf-input" value="5" min="1" max="50"/>';
-      html += '<span style="flex:1"></span>';
-      html += '<button class="rf-pick-btn" id="rfPickBtn">' + t('뽑기','Pick') + '</button>';
-      html += '</div>';
-      html += '<div class="rf-row">';
-      html += '<span class="rf-label">' + t('풀이 필터','Solve Filter') + '</span>';
-      html += '<select id="rfSolveFilter" class="rf-select"><option value="0">' + t('전체','All') + '</option><option value="1">' + t('내가 푼 문제 제외','Exclude Solved') + '</option><option value="2">' + t('내가 푼 문제만','Only Solved') + '</option></select>';
-      html += '</div>';
-      html += '<div class="rf-row">';
-      html += '<label class="rf-check"><input type="checkbox" id="rfExcludeObscure" checked/>' + t('듣보 문제 제외 (맞은 사람','Exclude obscure (accepted ≥') + '</label>';
-      html += '<input type="number" id="rfMinAccepted" class="rf-input" value="100" min="0"/>';
-      html += '<span style="font-size:12px;">' + t('명 이하)',' solvers)') + '</span>';
-      html += '</div>';
-    } else if (p === 'SWEA') {
+    if (p === 'SWEA') {
       html += '<div class="rf-row"><span class="rf-label">' + t('난이도','Difficulty') + '</span>';
       html += '<div class="tag-selector" id="rfSweaLevelSelector">';
       html += '<div class="tag-selected-chips" id="rfSweaLevelChips"></div>';
@@ -1858,7 +1763,7 @@ label { font-size: 12px; display: flex; align-items: center; gap: var(--ctk-spac
       var tagChips = c.querySelector('#' + chipsId);
       if (!tagAddBtn || !tagDropdown || !tagChips) return;
 
-      // Add search box if there are many items (e.g. BOJ tags)
+      // Add search box if there are many items
       var allLabels = tagDropdown.querySelectorAll('label');
       if (allLabels.length > 10) {
         var searchInput = document.createElement('input');
@@ -1969,15 +1874,6 @@ label { font-size: 12px; display: flex; align-items: center; gap: var(--ctk-spac
       state._examCollections.map(function(col) { return {id: String(col.id), en: col.name}; }),
       function(tagId) { var c = state._examCollections.find(function(x){return String(x.id)===tagId;}); return c ? c.name : tagId; });
 
-    // BOJ: mode switch
-    var bojMode = c.querySelector('#rfBojMode');
-    if (bojMode) {
-      bojMode.addEventListener('change', function() {
-        c.querySelector('#rfBojTierRow').style.display = this.value === 'tier' ? '' : 'none';
-        c.querySelector('#rfBojClassRow').style.display = this.value === 'class' ? '' : 'none';
-      });
-    }
-
     // Pick button
     var pickBtn = c.querySelector('#rfPickBtn');
     if (pickBtn) {
@@ -1986,30 +1882,7 @@ label { font-size: 12px; display: flex; align-items: center; gap: var(--ctk-spac
         count = Math.max(1, Math.min(50, count));
         var data = { source: state.platform, count: count };
 
-        if (p === 'BAEKJOON') {
-          var mode = (c.querySelector('#rfBojMode') || {}).value || 'tier';
-          var queryParts = [];
-          if (mode === 'tier') {
-            var from = parseInt(c.querySelector('#rfBojTierFrom').value, 10);
-            var to = parseInt(c.querySelector('#rfBojTierTo').value, 10);
-            queryParts.push('tier:' + RANDOM_CFG.BOJ_TIER_CODES[from] + '..' + RANDOM_CFG.BOJ_TIER_CODES[to]);
-          } else {
-            var cf = c.querySelector('#rfBojClassFrom').value;
-            var ct = c.querySelector('#rfBojClassTo').value;
-            queryParts.push('class:' + cf + '..' + ct);
-          }
-          var selTags = [];
-          c.querySelectorAll('#rfBojTagDropdown input[data-tag]:checked').forEach(function(cb){ selTags.push('tag:'+cb.getAttribute('data-tag')); });
-          if (selTags.length > 0) queryParts.push('(' + selTags.join('|') + ')');
-          var exCheck = c.querySelector('#rfExcludeObscure');
-          if (exCheck && exCheck.checked) {
-            var minAcc = parseInt((c.querySelector('#rfMinAccepted') || {}).value || '100', 10);
-            queryParts.push('solved:' + minAcc + '..');
-          }
-          var solveF = parseInt((c.querySelector('#rfSolveFilter') || {}).value || '0', 10);
-          data.tierQuery = queryParts.join(' ');
-          data.solveFilter = solveF;
-        } else if (p === 'SWEA') {
+        if (p === 'SWEA') {
           var sweaLevels = [];
           c.querySelectorAll('#rfSweaLevelDropdown input[data-tag]:checked').forEach(function(cb){ sweaLevels.push(cb.getAttribute('data-tag')); });
           data.problemLevels = sweaLevels.length > 0 ? sweaLevels : undefined;
@@ -3321,14 +3194,12 @@ label { font-size: 12px; display: flex; align-items: center; gap: var(--ctk-spac
         // Source Attribution (출처 표시)
         if (p.source && p.id) {
           var sourceUrls = {
-            BAEKJOON: 'https://www.acmicpc.net/problem/' + p.id,
             PROGRAMMERS: 'https://school.programmers.co.kr/learn/courses/30/lessons/' + p.id,
             SWEA: 'https://swexpertacademy.com/main/code/problem/problemDetail.do?contestProbId=' + (p.contestProbId || p.id),
             LEETCODE: 'https://leetcode.com/problems/' + p.id + '/',
             CODEFORCES: 'https://codeforces.com/problemset/problem/' + (p.contestProbId || p.id)
           };
           var sourceNames = {
-            BAEKJOON: state.uiLang === 'KO' ? '백준 온라인 저지' : 'Baekjoon Online Judge',
             PROGRAMMERS: state.uiLang === 'KO' ? '프로그래머스 코딩 테스트 연습' : 'Programmers Coding Test Practice',
             SWEA: 'SW Expert Academy',
             LEETCODE: 'LeetCode',

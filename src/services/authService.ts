@@ -70,8 +70,6 @@ export async function fetchUsername(source: ProblemSource, cookies: string): Pro
 
   try {
     switch (source) {
-      case ProblemSource.BAEKJOON:
-        return await fetchBojUsername(cookies);
       case ProblemSource.PROGRAMMERS:
         return await fetchProgrammersUsername(cookies);
       case ProblemSource.SWEA:
@@ -86,40 +84,6 @@ export async function fetchUsername(source: ProblemSource, cookies: string): Pro
   } catch {
     return '';
   }
-}
-
-async function fetchBojUsername(cookies: string): Promise<string> {
-  const response = await axios.get('https://www.acmicpc.net/', {
-    headers: { 'User-Agent': UA, Cookie: cookies },
-    timeout: TIMEOUT,
-    maxRedirects: 5,
-    validateStatus: () => true,
-  });
-
-  const html: string = typeof response.data === 'string' ? response.data : '';
-  const $ = cheerio.load(html);
-
-  // Try the global JS variable a.username
-  const scriptMatch = html.match(/a\.username\s*=\s*["']([^"']+)["']/);
-  if (scriptMatch && scriptMatch[1]) {
-    return scriptMatch[1];
-  }
-
-  // Try .loginbar a[href^="/user/"]
-  const userLink = $('.loginbar a[href^="/user/"]');
-  if (userLink.length > 0) {
-    const href = userLink.attr('href') ?? '';
-    const match = href.match(/\/user\/([^/?#]+)/);
-    if (match) {
-      return match[1];
-    }
-    const text = userLink.text().trim();
-    if (text) {
-      return text;
-    }
-  }
-
-  return '';
 }
 
 async function fetchProgrammersUsername(cookies: string): Promise<string> {
@@ -227,8 +191,6 @@ async function fetchCodeforcesUsername(cookies: string): Promise<string> {
 
 export function getLoginUrl(source: ProblemSource): string {
   switch (source) {
-    case ProblemSource.BAEKJOON:
-      return 'https://www.acmicpc.net/login';
     case ProblemSource.PROGRAMMERS:
       return 'https://programmers.co.kr/account/sign_in?referer=https://school.programmers.co.kr/';
     case ProblemSource.SWEA:
@@ -245,7 +207,6 @@ export function getLoginUrl(source: ProblemSource): string {
 // --- Direct login (form-based) ---
 
 export function isDirectLoginSupported(source: ProblemSource): boolean {
-  // BOJ: reCAPTCHA blocks direct login
   // LeetCode: bot protection blocks direct login
   return source === ProblemSource.CODEFORCES
     || source === ProblemSource.SWEA;
@@ -257,8 +218,6 @@ export async function directLogin(
   password: string,
 ): Promise<{ success: boolean; cookies: string; error?: string }> {
   switch (source) {
-    case ProblemSource.BAEKJOON:
-      return directLoginBoj(username, password);
     case ProblemSource.CODEFORCES:
       return directLoginCf(username, password);
     case ProblemSource.LEETCODE:
@@ -267,62 +226,6 @@ export async function directLogin(
       return directLoginSwea(username, password);
     default:
       return { success: false, cookies: '', error: 'Direct login not supported for this platform.' };
-  }
-}
-
-async function directLoginBoj(
-  username: string,
-  password: string,
-): Promise<{ success: boolean; cookies: string; error?: string }> {
-  try {
-    // Step 1: Get login page to extract CSRF token
-    const loginPageRes = await axios.get('https://www.acmicpc.net/login', {
-      headers: { 'User-Agent': UA },
-      timeout: TIMEOUT,
-      maxRedirects: 5,
-      validateStatus: () => true,
-    });
-
-    const $ = cheerio.load(loginPageRes.data);
-    const csrfToken = $('input[name="csrf_key"]').val() as string || '';
-
-    // Collect cookies from the login page response
-    const pageCookies = extractSetCookies(loginPageRes.headers['set-cookie']);
-
-    // Step 2: POST login credentials
-    const formData = new URLSearchParams();
-    formData.set('login_user_id', username);
-    formData.set('login_password', password);
-    if (csrfToken) {
-      formData.set('csrf_key', csrfToken);
-    }
-    formData.set('auto_login', '');
-
-    const loginRes = await axios.post('https://www.acmicpc.net/signin', formData.toString(), {
-      headers: {
-        'User-Agent': UA,
-        'Content-Type': 'application/x-www-form-urlencoded',
-        'Cookie': pageCookies,
-        'Referer': 'https://www.acmicpc.net/login',
-        'Origin': 'https://www.acmicpc.net',
-      },
-      timeout: TIMEOUT,
-      maxRedirects: 0,
-      validateStatus: () => true,
-    });
-
-    // Merge cookies from login response
-    const loginCookies = extractSetCookies(loginRes.headers['set-cookie']);
-    const allCookies = mergeCookies(pageCookies, loginCookies);
-
-    // Check if login succeeded (302 redirect to / or has OnlineJudge cookie)
-    if (loginRes.status === 302 || allCookies.includes('OnlineJudge')) {
-      return { success: true, cookies: allCookies };
-    }
-
-    return { success: false, cookies: '', error: 'Invalid credentials' };
-  } catch (err: any) {
-    return { success: false, cookies: '', error: err?.message || 'Login request failed' };
   }
 }
 

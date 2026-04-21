@@ -1,6 +1,5 @@
 import axios from 'axios';
 import { ProblemSource, ProblemInfo } from '../models/models';
-import { searchProblems as solvedAcSearchProblems } from './solvedAcApi';
 import { searchProblems as leetCodeSearchProblems } from './leetCodeApi';
 
 const PAGE_SIZE = 50;
@@ -32,7 +31,6 @@ const cfSolvedCache = new Map<string, CfSolvedCacheEntry>();
 // --- Supported sources ---
 
 const SUPPORTED_SOURCES: ProblemSource[] = [
-  ProblemSource.BAEKJOON,
   ProblemSource.CODEFORCES,
   ProblemSource.LEETCODE,
 ];
@@ -51,8 +49,6 @@ export async function fetchSolvedProblems(
   cookies?: string,
 ): Promise<{ problems: ProblemInfo[]; totalCount: number }> {
   switch (source) {
-    case ProblemSource.BAEKJOON:
-      return fetchBaekjoonSolved(handle, query, page);
     case ProblemSource.CODEFORCES:
       return fetchCodeforcesSolved(handle, query, page);
     case ProblemSource.LEETCODE:
@@ -60,21 +56,6 @@ export async function fetchSolvedProblems(
     default:
       return { problems: [], totalCount: 0 };
   }
-}
-
-// --- Baekjoon (via solved.ac) ---
-
-async function fetchBaekjoonSolved(
-  handle: string,
-  query: string,
-  page: number,
-): Promise<{ problems: ProblemInfo[]; totalCount: number }> {
-  const solvedQuery = query
-    ? `solved_by:${handle} ${query}`
-    : `solved_by:${handle}`;
-
-  const result = await solvedAcSearchProblems(solvedQuery, 'id', 'desc', page);
-  return { problems: result.problems, totalCount: result.totalCount };
 }
 
 // --- Codeforces ---

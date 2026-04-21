@@ -3,8 +3,6 @@ import * as path from 'path';
 import { getWebviewContent } from './mainWebview';
 import { Problem, ProblemSource, Language, LanguageInfo, TestCase, languageFromExtension } from '../models/models';
 import { t, setLanguage, getLang } from '../services/i18n';
-import { fetchBaekjoonProblem } from '../services/baekjoonCrawler';
-import { searchProblems as searchBoj, searchSuggestions, searchRandomProblems as randomBoj, fetchTagList as fetchBojTags } from '../services/solvedAcApi';
 import { fetchProblem as fetchLeetCode, searchProblems as searchLeetCode, fetchAllProblemStats, fetchTopicTags as fetchLcTags } from '../services/leetCodeApi';
 import { fetchProgrammersProblem, searchProblems as searchProgrammers, fetchExamCollections } from '../services/programmersApi';
 import { searchProblems as searchSwea, randomProblems as randomSwea } from '../services/swexpertApi';
@@ -24,7 +22,7 @@ import { fetchSolvedProblems, isSupported as isSolvedSupported } from '../servic
 export class CodingTestKitViewProvider implements vscode.WebviewViewProvider {
   private _view?: vscode.WebviewView;
   private _currentProblem?: Problem;
-  private _currentSource: ProblemSource = ProblemSource.BAEKJOON;
+  private _currentSource: ProblemSource = ProblemSource.PROGRAMMERS;
   private _currentLanguage: Language = Language.JAVA;
   private _stateRestored = false;
   private _testCases: TestCase[] = [];
@@ -189,9 +187,6 @@ export class CodingTestKitViewProvider implements vscode.WebviewViewProvider {
         case 'githubListRepos':
           await this._githubListRepos();
           break;
-        case 'searchSuggestion':
-          await this._searchSuggestion(data);
-          break;
         case 'fetchTags':
           await this._fetchTags(data);
           break;
@@ -265,9 +260,6 @@ export class CodingTestKitViewProvider implements vscode.WebviewViewProvider {
     const cookies = await getCookies(source);
 
     switch (source) {
-      case ProblemSource.BAEKJOON:
-        problem = await fetchBaekjoonProblem(problemId);
-        break;
       case ProblemSource.PROGRAMMERS:
         problem = await fetchProgrammersProblem(problemId, cookies);
         break;
@@ -406,9 +398,6 @@ export class CodingTestKitViewProvider implements vscode.WebviewViewProvider {
 
     let url: string;
     switch (source) {
-      case ProblemSource.BAEKJOON:
-        url = `https://www.acmicpc.net/submit/${this._currentProblem.id}`;
-        break;
       case ProblemSource.PROGRAMMERS: {
         const progLang = { JAVA: 'java', PYTHON: 'python3', CPP: 'cpp', KOTLIN: 'kotlin', JAVASCRIPT: 'javascript' }[this._currentLanguage] || '';
         url = `https://school.programmers.co.kr/learn/courses/30/lessons/${this._currentProblem.id}${progLang ? '?language=' + progLang : ''}`;
@@ -445,8 +434,8 @@ export class CodingTestKitViewProvider implements vscode.WebviewViewProvider {
   }
 
   private async _fallbackSubmit(source: ProblemSource, problemId: string, code: string, cookies: string): Promise<void> {
-    // For BOJ/Programmers/SWEA: use existing HTTP API submission
-    if (source === ProblemSource.BAEKJOON || source === ProblemSource.PROGRAMMERS || source === ProblemSource.SWEA) {
+    // For Programmers/SWEA: use existing HTTP API submission
+    if (source === ProblemSource.PROGRAMMERS || source === ProblemSource.SWEA) {
       this.sendCommand('info', { message: t('API로 제출 중...', 'Submitting via API...') });
       const apiResult = await submitCode(
         source,
@@ -697,18 +686,6 @@ export class CodingTestKitViewProvider implements vscode.WebviewViewProvider {
 
     let results: any;
     switch (source) {
-      case ProblemSource.BAEKJOON: {
-        // Apply solve filter to query
-        let bojQuery = query || '';
-        if (data.solveFilter === 1 || data.solveFilter === 2) {
-          const username = await getUsername(source);
-          if (username) {
-            bojQuery += data.solveFilter === 1 ? ` -solved_by:${username}` : ` solved_by:${username}`;
-          }
-        }
-        results = await searchBoj(bojQuery, sort || 'id', 'asc', page || 1);
-        break;
-      }
       case ProblemSource.LEETCODE:
         results = await searchLeetCode(
           query || '', difficulty || null, tags ? (Array.isArray(tags) ? tags : [tags]) : [],
@@ -755,20 +732,6 @@ export class CodingTestKitViewProvider implements vscode.WebviewViewProvider {
 
     let problems: any[];
     switch (source) {
-      case ProblemSource.BAEKJOON: {
-        // tierQuery is a complete solved.ac query string built by the webview
-        const query = data.tierQuery || 'solvable:true';
-        // solveFilter: 0=all, 1=exclude solved, 2=only solved
-        let finalQuery = query;
-        if (data.solveFilter === 1 || data.solveFilter === 2) {
-          const username = await getUsername(source);
-          if (username) {
-            finalQuery += data.solveFilter === 1 ? ` -solved_by:${username}` : ` solved_by:${username}`;
-          }
-        }
-        problems = await randomBoj(finalQuery, [], count || 5);
-        break;
-      }
       case ProblemSource.LEETCODE: {
         const tagArr = data.tags ? (Array.isArray(data.tags) ? data.tags : [data.tags]) : [];
         const difficulty = data.difficulty || null;
@@ -1147,20 +1110,11 @@ export class CodingTestKitViewProvider implements vscode.WebviewViewProvider {
     this.sendCommand('githubRepos', repos);
   }
 
-  private async _searchSuggestion(data: { query: string }): Promise<void> {
-    if (!data.query || data.query.length < 2) { return; }
-    const suggestions = await searchSuggestions(data.query);
-    this.sendCommand('searchSuggestions', suggestions);
-  }
-
   private async _fetchTags(data: { source: string }): Promise<void> {
     const { source } = data;
     try {
       let tags: any[] = [];
       switch (source) {
-        case ProblemSource.BAEKJOON:
-          tags = await fetchBojTags();
-          break;
         case ProblemSource.LEETCODE: {
           const cookies = await getCookies(ProblemSource.LEETCODE);
           tags = await fetchLcTags(cookies);

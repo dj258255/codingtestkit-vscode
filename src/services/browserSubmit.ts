@@ -54,9 +54,6 @@ function parseCookieString(cookieStr: string, url: string): Array<{ name: string
 
 function getSubmitUrl(source: ProblemSource, problemId: string, language?: Language, contestProbId?: string): string {
   switch (source) {
-    case ProblemSource.BAEKJOON:
-      return `https://www.acmicpc.net/submit/${problemId}`;
-
     case ProblemSource.PROGRAMMERS: {
       const langSlug = language ? PROGRAMMERS_LANG_SLUG[language] : '';
       const langParam = langSlug ? `?language=${langSlug}` : '';
@@ -87,7 +84,6 @@ function getSubmitUrl(source: ProblemSource, problemId: string, language?: Langu
 
 function getCookieUrl(source: ProblemSource): string {
   switch (source) {
-    case ProblemSource.BAEKJOON: return 'https://www.acmicpc.net';
     case ProblemSource.PROGRAMMERS: return 'https://school.programmers.co.kr';
     case ProblemSource.SWEA: return 'https://swexpertacademy.com';
     case ProblemSource.LEETCODE: return 'https://leetcode.com';
@@ -98,7 +94,6 @@ function getCookieUrl(source: ProblemSource): string {
 
 function getCookieDomain(source: ProblemSource): string {
   switch (source) {
-    case ProblemSource.BAEKJOON: return '.acmicpc.net';
     case ProblemSource.PROGRAMMERS: return '.programmers.co.kr';
     case ProblemSource.SWEA: return '.swexpertacademy.com';
     case ProblemSource.LEETCODE: return '.leetcode.com';
@@ -108,52 +103,6 @@ function getCookieDomain(source: ProblemSource): string {
 }
 
 // --- Code injection per platform ---
-
-async function injectCodeBaekjoon(page: any, code: string, language: Language): Promise<boolean> {
-  const langId = String(LanguageInfo[language].baekjoonId);
-
-  // Wait for submit form
-  await page.waitForSelector('#submit_form, .CodeMirror, select#language', { timeout: 15000 });
-  await new Promise(r => setTimeout(r, 1000));
-
-  // Select language
-  await page.evaluate((val: string) => {
-    const select = document.querySelector('select#language, select[name="language"]') as HTMLSelectElement;
-    if (select) {
-      select.value = val;
-      select.dispatchEvent(new Event('change', { bubbles: true }));
-    }
-  }, langId);
-
-  await new Promise(r => setTimeout(r, 500));
-
-  // Inject code into CodeMirror
-  return await page.evaluate((codeStr: string) => {
-    // Method 1: CodeMirror instance on DOM element
-    const cmElement = document.querySelector('.CodeMirror') as any;
-    if (cmElement?.CodeMirror) {
-      cmElement.CodeMirror.setValue(codeStr);
-      return true;
-    }
-
-    // Method 2: Ace Editor (fallback)
-    const aceEl = document.querySelector('.ace_editor') as any;
-    if (aceEl?.env?.editor) {
-      aceEl.env.editor.setValue(codeStr, -1);
-      return true;
-    }
-
-    // Method 3: textarea
-    const textarea = document.querySelector('textarea[name="source"], #source') as HTMLTextAreaElement;
-    if (textarea) {
-      textarea.value = codeStr;
-      textarea.dispatchEvent(new Event('input', { bubbles: true }));
-      return true;
-    }
-
-    return false;
-  }, code);
-}
 
 async function injectCodeProgrammers(page: any, code: string, _language: Language): Promise<boolean> {
   // Language is already selected via URL parameter (?language=python3 etc.)
@@ -395,7 +344,6 @@ async function injectCodeCodeforces(page: any, code: string, language: Language)
 
 async function injectCode(page: any, source: ProblemSource, code: string, language: Language): Promise<boolean> {
   switch (source) {
-    case ProblemSource.BAEKJOON: return injectCodeBaekjoon(page, code, language);
     case ProblemSource.PROGRAMMERS: return injectCodeProgrammers(page, code, language);
     case ProblemSource.SWEA: return injectCodeSwea(page, code, language);
     case ProblemSource.LEETCODE: return injectCodeLeetCode(page, code, language);

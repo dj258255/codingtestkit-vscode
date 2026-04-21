@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.2.0] - 2026-04-20
+
+### Removed
+
+- **Baekjoon (BOJ) Support**: Removed all Baekjoon-related functionality — crawler, submit API, solved.ac integration, browser login/submit, random picker (tier/class filters, algorithm tags), search, my-solved lookup, and UI entries. Supported platforms are now Programmers, SWEA, LeetCode, and Codeforces. Default platform selection falls back to Programmers.
+
 ## [1.1.0] - 2026-03-18
 
 ### Fixed
