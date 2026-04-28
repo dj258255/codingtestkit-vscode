@@ -37,24 +37,47 @@ jobs:
       - name: Build VSIX
         run: npx @vscode/vsce package --no-yarn
 
-      # VS Code Marketplace 배포
+      # VS Code Marketplace 배포 (이미 같은 버전이 있으면 스킵)
       - name: Publish to VS Code Marketplace
         env:
           VSCE_PAT: ${{ secrets.VSCE_PAT }}
-        run: npx @vscode/vsce publish --no-yarn -p "$VSCE_PAT"
+        run: |
+          set +e
+          OUT=$(npx @vscode/vsce publish --no-yarn -p "$VSCE_PAT" 2>&1)
+          RC=$?
+          echo "$OUT"
+          if [ $RC -ne 0 ] && echo "$OUT" | grep -qi "already exists"; then
+            echo "::notice::VS Code Marketplace already has this version — skipping"
+            exit 0
+          fi
+          exit $RC
 
-      # Open VSX 배포 (Cursor, VSCodium, code-server 등에서 사용 가능)
-      # OVSX_PAT 시크릿이 없으면 자동 스킵
+      # Open VSX 배포 (Cursor, VSCodium, code-server, Gitpod 등에서 사용 가능)
+      # OVSX_PAT 시크릿이 없으면 자동 스킵, 같은 버전 존재 시에도 스킵
       - name: Publish to Open VSX
         if: env.OVSX_PAT != ''
-        run: npx ovsx publish "$(ls *.vsix)" -p "$OVSX_PAT"
+        run: |
+          set +e
+          OUT=$(npx ovsx publish "$(ls *.vsix)" -p "$OVSX_PAT" 2>&1)
+          RC=$?
+          echo "$OUT"
+          if [ $RC -ne 0 ] && echo "$OUT" | grep -qi "already exists"; then
+            echo "::notice::Open VSX already has this version — skipping"
+            exit 0
+          fi
+          exit $RC
 
-      # GitHub Release 생성 + .vsix 첨부
-      - name: Create GitHub Release
+      # GitHub Release 생성 + .vsix 첨부 (이미 있으면 자산만 갱신)
+      - name: Create or update GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
           TAG_REF: ${{ github.ref_name }}
         run: |
-          gh release create "$TAG_REF" *.vsix \
-            --title "$TAG_REF" \
-            --generate-notes
+          if gh release view "$TAG_REF" >/dev/null 2>&1; then
+            echo "::notice::Release $TAG_REF already exists — uploading assets"
+            gh release upload "$TAG_REF" *.vsix --clobber
+          else
+            gh release create "$TAG_REF" *.vsix \
+              --title "$TAG_REF" \
+              --generate-notes
+          fi
