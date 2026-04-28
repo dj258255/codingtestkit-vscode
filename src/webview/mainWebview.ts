@@ -977,6 +977,19 @@ label { font-size: 12px; display: flex; align-items: center; gap: var(--ctk-spac
     <div id="settingHelp" style="font-size:11px; color:var(--vscode-descriptionForeground,#999); line-height:1.6;"></div>
   </div>
   <div class="setting-group">
+    <div class="setting-group-title" data-ko="피드백" data-en="Feedback">Feedback</div>
+    <div class="setting-row" style="flex-direction:column; align-items:flex-start; gap:6px;">
+      <span style="font-size:11px; color:var(--vscode-descriptionForeground,#999); line-height:1.5;"
+        data-ko="오류, 버그, 새로운 기능 제안이 있다면 알려주세요!"
+        data-en="Found a bug or have a feature suggestion? Let me know!">Found a bug or have a feature suggestion? Let me know!</span>
+      <a href="https://forms.gle/Qqi5gDoHSi2HU1Xs5" target="_blank" rel="noopener noreferrer"
+        style="display:inline-flex; align-items:center; gap:4px; font-size:11px; text-decoration:none; color:var(--vscode-textLink-foreground);">
+        <span class="codicon codicon-feedback"></span>
+        <span data-ko="피드백 보내기" data-en="Send Feedback">Send Feedback</span>
+      </a>
+    </div>
+  </div>
+  <div class="setting-group">
     <div class="setting-group-title" data-ko="감지된 도구 경로" data-en="Detected Tool Paths">Detected Tool Paths</div>
     <div id="settingToolPaths" style="font-size:11px; line-height:1.8;"></div>
   </div>

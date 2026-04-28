@@ -11,3 +11,4 @@ esbuild.js
 .playwright-mcp/**
 firebase-debug.log
 .github/**
+media/demo/**

@@ -2,7 +2,7 @@
   "name": "codingtestkit",
   "displayName": "CodingTestKit - Algorithm Problem Solver",
   "description": "Fetch, test, and submit algorithm problems from Programmers, SWEA, LeetCode, Codeforces — all without leaving VS Code.",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "publisher": "codingtestkit",
   "license": "MIT",
   "engines": {

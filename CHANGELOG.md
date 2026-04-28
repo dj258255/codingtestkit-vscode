@@ -1,5 +1,19 @@
 # Changelog
 
+## [1.2.1] - 2026-04-28
+
+### Added
+
+- **Feedback Channel**: Added a Google Form for bug reports and feature suggestions. Accessible from the Settings tab inside the extension and linked in the README (both EN/KO sections).
+
+### Improved
+
+- **VSIX Size**: Reduced package size from 12.43 MB to 1.93 MB by excluding `media/demo/` GIFs from the VSIX and serving them via GitHub raw URLs in the README.
+
+### Removed
+
+- **BOJ Remnants**: Cleaned up untracked `baekjoonCrawler.ts` and `solvedAcApi.ts` files left over from v1.2.0 BOJ removal.
+
 ## [1.2.0] - 2026-04-20
 
 ### Removed
