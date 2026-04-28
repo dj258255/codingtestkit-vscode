@@ -259,6 +259,9 @@ Switch between **Korean / English** in settings. All UI text — buttons, labels
 1. Open VS Code > Extensions (`Ctrl+Shift+X`)
 2. Search **"CodingTestKit"** and install
 
+### Cursor / VSCodium / code-server (Open VSX)
+Available on [Open VSX Registry](https://open-vsx.org/extension/codingtestkit/codingtestkit) — open the Extensions panel in **Cursor**, **VSCodium**, **code-server**, or **Gitpod**, search **"CodingTestKit"**, and install.
+
 ### Manual Install
 1. Download `.vsix` from [Releases](https://github.com/dj258255/codingtestkit-vscode/releases)
 2. VS Code > Extensions > `...` menu > Install from VSIX
@@ -548,6 +551,9 @@ LeetCode와 Codeforces는 기본 브라우저에서 문제 페이지가 열립�
 ### VS Code Marketplace
 1. VS Code > 확장 (`Ctrl+Shift+X`)
 2. **"CodingTestKit"** 검색 후 설치
+
+### Cursor / VSCodium / code-server (Open VSX)
+[Open VSX Registry](https://open-vsx.org/extension/codingtestkit/codingtestkit)에 등록되어 있어 **Cursor**, **VSCodium**, **code-server**, **Gitpod** 등에서도 확장 패널을 열고 **"CodingTestKit"** 을 검색해 바로 설치할 수 있습니다.
 
 ### 수동 설치
 1. [Releases](https://github.com/dj258255/codingtestkit-vscode/releases)에서 `.vsix` 파일 다운로드

@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.2.2] - 2026-04-28
+
+### Added
+
+- **Open VSX Registry**: Extension is now also published to [Open VSX](https://open-vsx.org/extension/codingtestkit/codingtestkit), making CodingTestKit installable directly from **Cursor**, **VSCodium**, **code-server**, and **Gitpod** without manual VSIX installation.
+
+### Fixed
+
+- **Release Workflow**: Fixed Open VSX publish step being silently skipped due to step-level `env` not being available in `if` conditions. Moved `OVSX_PAT` to job-level env so subsequent releases publish to both marketplaces automatically.
+
 ## [1.2.1] - 2026-04-28
 
 ### Added
