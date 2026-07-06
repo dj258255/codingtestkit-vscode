@@ -113,6 +113,22 @@ function restoreMathJaxTex($: cheerio.CheerioAPI): void {
   });
 }
 
+// Load-time cleanup for problems saved to problem.json by versions before
+// the browser-fallback fix: their descriptions carry MathJax render
+// artifacts, so opening or translating them reproduces the corruption even
+// after the fetch path was fixed. Restores the original TeX and re-renders
+// it with KaTeX. Fast no-op for clean descriptions.
+export function stripMathJaxArtifacts(html: string): string {
+  if (!html.includes('MathJax') && !html.includes('math/tex')) {
+    return html;
+  }
+  const $ = cheerio.load(html);
+  restoreMathJaxTex($);
+  const cleaned = $('body').html() ?? html;
+  const { renderLatexInHtml } = require('../utils/latexRenderer');
+  return renderLatexInHtml(cleaned);
+}
+
 async function parseProblemPage(
   html: string,
   parsed: ParsedProblemId,

@@ -11,6 +11,7 @@ import {
 } from '../models/models';
 import { t } from './i18n';
 import { htmlToMarkdown } from './htmlToMarkdown';
+import { stripMathJaxArtifacts } from './codeforcesCrawler';
 
 // --- Constants ---
 
@@ -103,7 +104,8 @@ export function loadProblemFromFolder(folderPath: string): Problem | null {
       source: data.source as ProblemSource,
       id: String(data.id),
       title: String(data.title),
-      description: String(data.description ?? ''),
+      // Clean descriptions saved by pre-fix versions (MathJax artifacts)
+      description: stripMathJaxArtifacts(String(data.description ?? '')),
       testCases: Array.isArray(data.testCases) ? data.testCases : [],
       timeLimit: String(data.timeLimit ?? ''),
       memoryLimit: String(data.memoryLimit ?? ''),

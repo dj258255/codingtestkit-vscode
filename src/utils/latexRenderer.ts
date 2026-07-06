@@ -24,10 +24,15 @@ export function renderLatexInHtml(html: string): string {
     return `\x00PROTECT${idx++}\x00`;
   });
 
+  // TeX arrives from HTML, so comparison operators are entity-encoded
+  // ($x &lt; y$) — decode them or KaTeX chokes on the raw entities
+  const decodeEntities = (s: string) =>
+    s.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&amp;/g, '&');
+
   // Step 2: Replace $$...$$ (display math) first
   safe = safe.replace(/\$\$([\s\S]+?)\$\$/g, (_match, latex: string) => {
     try {
-      return katex.renderToString(latex.trim(), {
+      return katex.renderToString(decodeEntities(latex).trim(), {
         displayMode: true,
         output: 'mathml',
         throwOnError: false,
@@ -40,7 +45,7 @@ export function renderLatexInHtml(html: string): string {
   // Step 3: Replace $...$ (inline math) — avoid matching escaped \$ or empty $$
   safe = safe.replace(/\$([^$\n]+?)\$/g, (_match, latex: string) => {
     try {
-      return katex.renderToString(latex.trim(), {
+      return katex.renderToString(decodeEntities(latex).trim(), {
         displayMode: false,
         output: 'mathml',
         throwOnError: false,

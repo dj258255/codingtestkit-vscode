@@ -6,6 +6,8 @@
 
 - **Math in Browser-Fetched Codeforces Problems**: Problems fetched through the Cloudflare browser fallback showed every formula twice (MathJax's visual output plus its assistive MathML) and translation shredded the math markup entirely. The crawler now strips MathJax render artifacts and restores the original TeX for clean KaTeX rendering.
 - **Translation Breaking Markup**: The translator no longer touches KaTeX/MathML math, `<code>` blocks, or any tag carrying attributes — previously attribute values themselves got translated (`style=` → `스타일=`), corrupting the layout.
+- **Previously Saved Problems**: Problems fetched with the pre-fix version carry the corruption inside their saved `problem.json`; descriptions are now cleaned at load time as well, so existing folders display and translate correctly without re-fetching.
+- **TeX with Comparison Operators**: Formulas like `$x < y$` arrive entity-encoded from HTML and failed to render; entities are now decoded before KaTeX.
 
 ## [1.3.0] - 2026-07-07
 
