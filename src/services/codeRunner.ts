@@ -1,10 +1,15 @@
-import { spawn, ChildProcess, execFileSync } from 'child_process';
+import { spawn, execFile, ChildProcess, execFileSync } from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
 import { RunResult, Language } from '../models/models';
 
 const DEFAULT_TIMEOUT = 10000;
+// Compilation gets its own generous limit — kotlinc cold start alone can
+// exceed the run timeout, which would surface as a bogus "timeout".
+const COMPILE_TIMEOUT = 60000;
+// Force UTF-8 on JVM tools so Korean I/O survives Windows' MS949 default.
+const JAVA_UTF8_FLAGS = ['-Dfile.encoding=UTF-8', '-Dstdout.encoding=UTF-8', '-Dstderr.encoding=UTF-8'];
 const MEMORY_POLL_INTERVAL = 50;
 const MAIN_SEPARATOR = '///MAIN_SEPARATOR///';
 
@@ -23,11 +28,37 @@ interface DetectedPaths {
 
 const pathCache: Partial<DetectedPaths> = {};
 
+const isWindows = process.platform === 'win32';
+
+// Scans PATH directly instead of shelling out to `which`, which does not exist
+// on Windows (the extension host spawns without a shell).
 function whichSync(cmd: string): string | null {
+  const pathEnv = process.env['PATH'] ?? '';
+  const exts = isWindows
+    ? (path.extname(cmd) ? [''] : (process.env['PATHEXT'] ?? '.COM;.EXE;.BAT;.CMD').split(';'))
+    : [''];
+  for (const dir of pathEnv.split(path.delimiter)) {
+    if (!dir) { continue; }
+    for (const ext of exts) {
+      const candidate = path.join(dir, cmd + ext.toLowerCase());
+      try {
+        if (fs.statSync(candidate).isFile()) {
+          return candidate;
+        }
+      } catch { /* not here */ }
+    }
+  }
+  return null;
+}
+
+// Verifies a candidate binary actually runs. Filters out non-executables such
+// as the Windows Store `python.exe` alias stub, which exists but exits non-zero.
+function runsOk(bin: string, args: string[]): boolean {
   try {
-    return execFileSync('which', [cmd], { encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'] }).trim() || null;
+    execFileSync(bin, args, { stdio: ['pipe', 'pipe', 'pipe'], timeout: 5000 });
+    return true;
   } catch {
-    return null;
+    return false;
   }
 }
 
@@ -40,16 +71,19 @@ function firstExisting(...candidates: string[]): string | null {
   return null;
 }
 
+const javaExe = isWindows ? 'java.exe' : 'java';
+const javacExe = isWindows ? 'javac.exe' : 'javac';
+
 function detectJavaHome(): string | null {
   // 1. JAVA_HOME env
   const envHome = process.env['JAVA_HOME'];
-  if (envHome && fs.existsSync(path.join(envHome, 'bin', 'java'))) {
+  if (envHome && fs.existsSync(path.join(envHome, 'bin', javaExe))) {
     return envHome;
   }
 
   // 2. java.home (VS Code setting-like env, not always present)
   const javaHomeSetting = process.env['java.home'];
-  if (javaHomeSetting && fs.existsSync(path.join(javaHomeSetting, 'bin', 'java'))) {
+  if (javaHomeSetting && fs.existsSync(path.join(javaHomeSetting, 'bin', javaExe))) {
     return javaHomeSetting;
   }
 
@@ -69,12 +103,21 @@ function detectJavaHome(): string | null {
     searchDirs.push('/Library/Java/JavaVirtualMachines');
     searchDirs.push('/opt/homebrew/opt/openjdk');
   }
+  if (isWindows) {
+    for (const programFiles of ['C:\\Program Files', 'C:\\Program Files (x86)']) {
+      searchDirs.push(path.join(programFiles, 'Java'));
+      searchDirs.push(path.join(programFiles, 'Eclipse Adoptium'));
+      searchDirs.push(path.join(programFiles, 'Microsoft'));
+      searchDirs.push(path.join(programFiles, 'Zulu'));
+      searchDirs.push(path.join(programFiles, 'Amazon Corretto'));
+    }
+  }
   searchDirs.push('/usr/lib/jvm');
 
   for (const dir of searchDirs) {
     if (!fs.existsSync(dir)) { continue; }
     // /opt/homebrew/opt/openjdk is a direct JDK
-    const directBin = path.join(dir, 'bin', 'java');
+    const directBin = path.join(dir, 'bin', javaExe);
     if (fs.existsSync(directBin)) {
       return dir;
     }
@@ -83,11 +126,11 @@ function detectJavaHome(): string | null {
       const entries = fs.readdirSync(dir).sort().reverse();
       for (const entry of entries) {
         const candidate = path.join(dir, entry, 'Contents', 'Home');
-        if (fs.existsSync(path.join(candidate, 'bin', 'java'))) {
+        if (fs.existsSync(path.join(candidate, 'bin', javaExe))) {
           return candidate;
         }
         const candidate2 = path.join(dir, entry);
-        if (fs.existsSync(path.join(candidate2, 'bin', 'java'))) {
+        if (fs.existsSync(path.join(candidate2, 'bin', javaExe))) {
           return candidate2;
         }
       }
@@ -101,10 +144,13 @@ function detectJava(): string | null {
   if (pathCache.java !== undefined) { return pathCache.java; }
   const home = detectJavaHome();
   if (home) {
-    const javaBin = path.join(home, 'bin', 'java');
+    const javaBin = path.join(home, 'bin', javaExe);
     if (fs.existsSync(javaBin)) {
       pathCache.java = javaBin;
-      pathCache.javac = path.join(home, 'bin', 'javac');
+      const javacBin = path.join(home, 'bin', javacExe);
+      if (fs.existsSync(javacBin)) {
+        pathCache.javac = javacBin;
+      }
       return javaBin;
     }
   }
@@ -124,16 +170,36 @@ function detectJavac(): string | null {
 
 function detectPython3(): string | null {
   if (pathCache.python3 !== undefined) { return pathCache.python3; }
-  const found = whichSync('python3')
+  let found = whichSync('python3')
     ?? firstExisting('/usr/bin/python3', '/usr/local/bin/python3', '/opt/homebrew/bin/python3');
+  if (isWindows) {
+    // `python3` on Windows is usually the Store alias stub; prefer a candidate
+    // that actually runs (`python`, then the `py` launcher).
+    const candidates = [found, whichSync('python'), whichSync('py')].filter((c): c is string => !!c);
+    found = candidates.find(c => runsOk(c, ['--version'])) ?? null;
+  }
   pathCache.python3 = found;
   return found;
 }
 
 function detectGpp(): string | null {
   if (pathCache.gpp !== undefined) { return pathCache.gpp; }
-  const found = whichSync('g++')
+  let found = whichSync('g++')
     ?? firstExisting('/usr/bin/g++', '/usr/local/bin/g++', '/opt/homebrew/bin/g++');
+  if (!found && isWindows) {
+    found = firstExisting(
+      'C:\\msys64\\ucrt64\\bin\\g++.exe',
+      'C:\\msys64\\mingw64\\bin\\g++.exe',
+      'C:\\MinGW\\bin\\g++.exe',
+      'C:\\mingw64\\bin\\g++.exe',
+      'C:\\TDM-GCC-64\\bin\\g++.exe',
+      'C:\\Strawberry\\c\\bin\\g++.exe',
+    );
+  }
+  // Fall back to clang++ (same flags work for both compilers)
+  if (!found) {
+    found = whichSync('clang++');
+  }
   pathCache.gpp = found;
   return found;
 }
@@ -185,7 +251,7 @@ function detectNode(): string | null {
   }
 
   const found = whichSync('node')
-    ?? firstExisting('/usr/local/bin/node', '/opt/homebrew/bin/node');
+    ?? firstExisting('/usr/local/bin/node', '/opt/homebrew/bin/node', 'C:\\Program Files\\nodejs\\node.exe');
   pathCache.node = found;
   return found;
 }
@@ -888,33 +954,58 @@ function executeProcess(
     let memoryTimer: ReturnType<typeof setInterval> | null = null;
     let killed = false;
 
-    const child: ChildProcess = spawn(command, args, {
+    // Windows cannot spawn .bat/.cmd scripts directly (e.g. kotlinc.bat);
+    // wrap them in cmd.exe with verbatim quoting.
+    let spawnCommand = command;
+    let spawnArgs = args;
+    let verbatim = false;
+    if (isWindows && /\.(bat|cmd)$/i.test(command)) {
+      spawnCommand = process.env['ComSpec'] ?? 'cmd.exe';
+      const quoted = [command, ...args].map(a => `"${a}"`).join(' ');
+      spawnArgs = ['/d', '/s', '/c', `"${quoted}"`];
+      verbatim = true;
+    }
+
+    const child: ChildProcess = spawn(spawnCommand, spawnArgs, {
       cwd,
       stdio: ['pipe', 'pipe', 'pipe'],
-      env: { ...process.env },
+      // PYTHONIOENCODING keeps Python stdout/stderr UTF-8 on Windows (MS949 default)
+      env: { ...process.env, PYTHONIOENCODING: 'utf-8' },
+      windowsVerbatimArguments: verbatim,
     });
 
-    // Memory polling via ps (macOS/Linux)
+    // Memory polling: `ps` on macOS/Linux, `tasklist` on Windows.
+    // Async so slow polls never block the extension host; tasklist itself
+    // takes ~100ms, so poll less often there.
     if (child.pid) {
+      let pollInFlight = false;
+      const pollInterval = isWindows ? 300 : MEMORY_POLL_INTERVAL;
       memoryTimer = setInterval(() => {
         if (!child.pid || killed) {
           if (memoryTimer) { clearInterval(memoryTimer); }
           return;
         }
-        try {
-          const psOutput = execFileSync('ps', ['-o', 'rss=', '-p', String(child.pid)], {
-            encoding: 'utf-8',
-            stdio: ['pipe', 'pipe', 'pipe'],
-            timeout: 1000,
-          }).trim();
-          const rss = parseInt(psOutput, 10);
+        if (pollInFlight) { return; }
+        pollInFlight = true;
+        const pollCmd = isWindows
+          ? { bin: 'tasklist', args: ['/FI', `PID eq ${child.pid}`, '/NH', '/FO', 'CSV'] }
+          : { bin: 'ps', args: ['-o', 'rss=', '-p', String(child.pid)] };
+        execFile(pollCmd.bin, pollCmd.args, { timeout: 2000 }, (err, out) => {
+          pollInFlight = false;
+          if (err || !out) { return; }
+          let rss = NaN;
+          if (isWindows) {
+            // Last CSV field looks like "12,345 K"
+            const m = /"([\d,.]+)\s*K"/.exec(out);
+            if (m) { rss = parseInt(m[1].replace(/[,.]/g, ''), 10); }
+          } else {
+            rss = parseInt(out.trim(), 10);
+          }
           if (!isNaN(rss) && rss > peakMemoryKB) {
             peakMemoryKB = rss;
           }
-        } catch {
-          // Process may have ended
-        }
-      }, MEMORY_POLL_INTERVAL);
+        });
+      }, pollInterval);
     }
 
     // Timeout handling
@@ -922,7 +1013,13 @@ function executeProcess(
       timedOut = true;
       killed = true;
       try {
-        child.kill('SIGKILL');
+        if (isWindows && child.pid) {
+          // SIGKILL only terminates the direct child on Windows; use taskkill
+          // to take down the whole tree (e.g. cmd.exe -> java.exe).
+          execFile('taskkill', ['/PID', String(child.pid), '/T', '/F']);
+        } else {
+          child.kill('SIGKILL');
+        }
       } catch { /* ignore */ }
     }, timeout);
 
@@ -964,7 +1061,8 @@ function executeProcess(
       });
     });
 
-    // Write stdin
+    // Write stdin (ignore EPIPE when the process exits before reading)
+    child.stdin?.on('error', () => { /* ignore */ });
     if (stdinData && stdinData.trim().length > 0) {
       child.stdin?.write(stdinData);
     }
@@ -1108,7 +1206,7 @@ async function runJava(code: string, tmpDir: string, input: string, timeout: num
   fs.writeFileSync(filePath, code, 'utf-8');
 
   // Compile
-  const compileResult = await executeProcess(javac, [fileName], tmpDir, null, timeout);
+  const compileResult = await executeProcess(javac, ['-encoding', 'UTF-8', fileName], tmpDir, null, COMPILE_TIMEOUT);
   if (compileResult.exitCode !== 0) {
     return {
       output: '',
@@ -1121,7 +1219,7 @@ async function runJava(code: string, tmpDir: string, input: string, timeout: num
   }
 
   // Run
-  return executeProcess(java, ['-cp', tmpDir, className], tmpDir, input, timeout);
+  return executeProcess(java, [...JAVA_UTF8_FLAGS, '-cp', tmpDir, className], tmpDir, input, timeout);
 }
 
 async function runJavaMultiFile(
@@ -1185,7 +1283,7 @@ async function runJavaMultiFile(
   }
 
   // Compile all files together
-  const compileResult = await executeProcess(javac, files, tmpDir, null, timeout);
+  const compileResult = await executeProcess(javac, ['-encoding', 'UTF-8', ...files], tmpDir, null, COMPILE_TIMEOUT);
   if (compileResult.exitCode !== 0) {
     return {
       output: '',
@@ -1198,7 +1296,7 @@ async function runJavaMultiFile(
   }
 
   // Run Main class
-  return executeProcess(java, ['-cp', tmpDir, 'Main'], tmpDir, input, timeout);
+  return executeProcess(java, [...JAVA_UTF8_FLAGS, '-cp', tmpDir, 'Main'], tmpDir, input, timeout);
 }
 
 async function runPython(code: string, tmpDir: string, input: string, timeout: number): Promise<RunResult> {
@@ -1234,12 +1332,12 @@ async function runCpp(code: string, tmpDir: string, input: string, timeout: numb
   }
 
   const srcPath = path.join(tmpDir, 'solution.cpp');
-  const outPath = path.join(tmpDir, 'solution');
+  const outPath = path.join(tmpDir, isWindows ? 'solution.exe' : 'solution');
   fs.writeFileSync(srcPath, code, 'utf-8');
 
   // Compile
   const compileResult = await executeProcess(
-    gpp, ['-std=c++17', '-O2', '-o', outPath, srcPath], tmpDir, null, timeout,
+    gpp, ['-std=c++17', '-O2', '-o', outPath, srcPath], tmpDir, null, COMPILE_TIMEOUT,
   );
   if (compileResult.exitCode !== 0) {
     return {
@@ -1286,7 +1384,7 @@ async function runKotlin(code: string, tmpDir: string, input: string, timeout: n
 
   // Compile
   const compileResult = await executeProcess(
-    kotlinc, ['Solution.kt', '-include-runtime', '-d', 'solution.jar'], tmpDir, null, timeout,
+    kotlinc, ['-J-Dfile.encoding=UTF-8', 'Solution.kt', '-include-runtime', '-d', 'solution.jar'], tmpDir, null, COMPILE_TIMEOUT,
   );
   if (compileResult.exitCode !== 0) {
     return {
@@ -1300,7 +1398,7 @@ async function runKotlin(code: string, tmpDir: string, input: string, timeout: n
   }
 
   // Run
-  return executeProcess(java, ['-jar', jarPath], tmpDir, input, timeout);
+  return executeProcess(java, [...JAVA_UTF8_FLAGS, '-jar', jarPath], tmpDir, input, timeout);
 }
 
 async function runJavaScript(code: string, tmpDir: string, input: string, timeout: number): Promise<RunResult> {
