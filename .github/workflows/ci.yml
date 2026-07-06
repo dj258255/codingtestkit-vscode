@@ -50,5 +50,7 @@ jobs:
       - run: npm ci
       # Call the esbuild JS API directly — the npx/.bin shim layer produced
       # no output and no bundle on the Windows runner
-      - run: node -e "require('esbuild').buildSync({ entryPoints: ['test/smoke.ts'], bundle: true, platform: 'node', outfile: 'out/smoke.js', logLevel: 'info' })"
+      - run: >
+          node -e "require('esbuild').buildSync({ entryPoints: ['test/smoke.ts'],
+          bundle: true, platform: 'node', outfile: 'out/smoke.js', logLevel: 'info' })"
       - run: node out/smoke.js
