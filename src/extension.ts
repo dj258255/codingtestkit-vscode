@@ -4,6 +4,22 @@ import { initI18n } from './services/i18n';
 import { initAuthService } from './services/authService';
 import { initGitHubService } from './services/githubService';
 import { initTemplateService } from './services/templateService';
+import { setToolPathOverrides } from './services/codeRunner';
+
+function applyToolPathOverrides(): void {
+  const cfg = vscode.workspace.getConfiguration('codingtestkit.toolPath');
+  setToolPathOverrides({
+    java: cfg.get<string>('java') || undefined,
+    javac: cfg.get<string>('javac') || undefined,
+    python3: cfg.get<string>('python') || undefined,
+    gpp: cfg.get<string>('cpp') || undefined,
+    kotlinc: cfg.get<string>('kotlin') || undefined,
+    node: cfg.get<string>('node') || undefined,
+    rustc: cfg.get<string>('rust') || undefined,
+    go: cfg.get<string>('go') || undefined,
+    ruby: cfg.get<string>('ruby') || undefined,
+  });
+}
 
 let statusBarProblem: vscode.StatusBarItem;
 let statusBarPlatform: vscode.StatusBarItem;
@@ -11,6 +27,7 @@ let statusBarPlatform: vscode.StatusBarItem;
 export function activate(context: vscode.ExtensionContext) {
   // Initialize services
   initI18n();
+  applyToolPathOverrides();
   initAuthService(context);
   initGitHubService(context);
   initTemplateService(context);
@@ -113,6 +130,9 @@ export function activate(context: vscode.ExtensionContext) {
     vscode.workspace.onDidChangeConfiguration((e) => {
       if (e.affectsConfiguration('codingtestkit')) {
         initI18n();
+        if (e.affectsConfiguration('codingtestkit.toolPath')) {
+          applyToolPathOverrides();
+        }
         provider.sendCommand('settingsChanged');
       }
     })

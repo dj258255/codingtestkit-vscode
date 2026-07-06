@@ -169,6 +169,51 @@
           "type": "boolean",
           "default": false,
           "description": "Enable exam mode (blocks paste, disables autocomplete, focus alert) / 시험 모드"
+        },
+        "codingtestkit.toolPath.java": {
+          "type": "string",
+          "default": "",
+          "description": "Path to the java binary. Overrides auto-detection. / java 실행 파일 경로 (자동 감지보다 우선)"
+        },
+        "codingtestkit.toolPath.javac": {
+          "type": "string",
+          "default": "",
+          "description": "Path to the javac binary. Overrides auto-detection. / javac 실행 파일 경로 (자동 감지보다 우선)"
+        },
+        "codingtestkit.toolPath.python": {
+          "type": "string",
+          "default": "",
+          "description": "Path to the Python 3 binary. Overrides auto-detection. / Python 3 실행 파일 경로 (자동 감지보다 우선)"
+        },
+        "codingtestkit.toolPath.cpp": {
+          "type": "string",
+          "default": "",
+          "description": "Path to the C++ compiler (g++/clang++). Overrides auto-detection. / C++ 컴파일러 경로 (자동 감지보다 우선)"
+        },
+        "codingtestkit.toolPath.kotlin": {
+          "type": "string",
+          "default": "",
+          "description": "Path to the kotlinc binary. Overrides auto-detection. / kotlinc 실행 파일 경로 (자동 감지보다 우선)"
+        },
+        "codingtestkit.toolPath.node": {
+          "type": "string",
+          "default": "",
+          "description": "Path to the Node.js binary. Overrides auto-detection. / Node.js 실행 파일 경로 (자동 감지보다 우선)"
+        },
+        "codingtestkit.toolPath.rust": {
+          "type": "string",
+          "default": "",
+          "description": "Path to the rustc binary. Overrides auto-detection. / rustc 실행 파일 경로 (자동 감지보다 우선)"
+        },
+        "codingtestkit.toolPath.go": {
+          "type": "string",
+          "default": "",
+          "description": "Path to the go binary. Overrides auto-detection. / go 실행 파일 경로 (자동 감지보다 우선)"
+        },
+        "codingtestkit.toolPath.ruby": {
+          "type": "string",
+          "default": "",
+          "description": "Path to the ruby binary. Overrides auto-detection. / ruby 실행 파일 경로 (자동 감지보다 우선)"
         }
       }
     }

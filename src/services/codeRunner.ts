@@ -31,6 +31,24 @@ interface DetectedPaths {
 
 const pathCache: Partial<DetectedPaths> = {};
 
+export type ToolName = keyof DetectedPaths;
+
+let toolPathOverrides: Partial<Record<ToolName, string>> = {};
+
+// User-configured tool paths (codingtestkit.toolPath.*) take precedence over
+// auto-detection. Called by the extension on activation and settings changes.
+export function setToolPathOverrides(overrides: Partial<Record<ToolName, string>>): void {
+  toolPathOverrides = overrides;
+  for (const key of Object.keys(pathCache) as ToolName[]) {
+    delete pathCache[key];
+  }
+}
+
+function overrideFor(tool: ToolName): string | null {
+  const p = toolPathOverrides[tool]?.trim();
+  return p && fs.existsSync(p) ? p : null;
+}
+
 const isWindows = process.platform === 'win32';
 
 // Scans PATH directly instead of shelling out to `which`, which does not exist
@@ -145,6 +163,8 @@ function detectJavaHome(): string | null {
 
 function detectJava(): string | null {
   if (pathCache.java !== undefined) { return pathCache.java; }
+  const override = overrideFor('java');
+  if (override) { pathCache.java = override; return override; }
   const home = detectJavaHome();
   if (home) {
     const javaBin = path.join(home, 'bin', javaExe);
@@ -164,6 +184,8 @@ function detectJava(): string | null {
 
 function detectJavac(): string | null {
   if (pathCache.javac !== undefined) { return pathCache.javac; }
+  const override = overrideFor('javac');
+  if (override) { pathCache.javac = override; return override; }
   detectJava();
   if (pathCache.javac !== undefined) { return pathCache.javac; }
   const found = whichSync('javac');
@@ -173,6 +195,8 @@ function detectJavac(): string | null {
 
 function detectPython3(): string | null {
   if (pathCache.python3 !== undefined) { return pathCache.python3; }
+  const override = overrideFor('python3');
+  if (override) { pathCache.python3 = override; return override; }
   let found = whichSync('python3')
     ?? firstExisting('/usr/bin/python3', '/usr/local/bin/python3', '/opt/homebrew/bin/python3');
   if (isWindows) {
@@ -187,6 +211,8 @@ function detectPython3(): string | null {
 
 function detectGpp(): string | null {
   if (pathCache.gpp !== undefined) { return pathCache.gpp; }
+  const override = overrideFor('gpp');
+  if (override) { pathCache.gpp = override; return override; }
   let found = whichSync('g++')
     ?? firstExisting('/usr/bin/g++', '/usr/local/bin/g++', '/opt/homebrew/bin/g++');
   if (!found && isWindows) {
@@ -209,6 +235,8 @@ function detectGpp(): string | null {
 
 function detectKotlinc(): string | null {
   if (pathCache.kotlinc !== undefined) { return pathCache.kotlinc; }
+  const override = overrideFor('kotlinc');
+  if (override) { pathCache.kotlinc = override; return override; }
 
   let found = whichSync('kotlinc');
   if (found) { pathCache.kotlinc = found; return found; }
@@ -232,6 +260,34 @@ function detectKotlinc(): string | null {
         }
       } catch { /* ignore */ }
     }
+
+    // IntelliJ app bundles — /Applications (direct) and ~/Applications (Toolbox)
+    for (const appsDir of ['/Applications', path.join(os.homedir(), 'Applications')]) {
+      try {
+        const apps = fs.readdirSync(appsDir).filter(e => e.startsWith('IntelliJ IDEA')).sort().reverse();
+        for (const app of apps) {
+          const p = path.join(appsDir, app, 'Contents', 'plugins', 'Kotlin', 'kotlinc', 'bin', 'kotlinc');
+          if (fs.existsSync(p)) { pathCache.kotlinc = p; return p; }
+        }
+      } catch { /* ignore */ }
+    }
+  }
+
+  // IntelliJ installs (Windows) — Program Files (direct) and Local Programs (Toolbox)
+  if (isWindows) {
+    const bases = [
+      'C:\\Program Files\\JetBrains',
+      path.join(os.homedir(), 'AppData', 'Local', 'Programs'),
+    ];
+    for (const base of bases) {
+      try {
+        const entries = fs.readdirSync(base).filter(e => e.startsWith('IntelliJ IDEA')).sort().reverse();
+        for (const entry of entries) {
+          const p = path.join(base, entry, 'plugins', 'Kotlin', 'kotlinc', 'bin', 'kotlinc.bat');
+          if (fs.existsSync(p)) { pathCache.kotlinc = p; return p; }
+        }
+      } catch { /* ignore */ }
+    }
   }
 
   pathCache.kotlinc = null;
@@ -240,6 +296,8 @@ function detectKotlinc(): string | null {
 
 function detectNode(): string | null {
   if (pathCache.node !== undefined) { return pathCache.node; }
+  const override = overrideFor('node');
+  if (override) { pathCache.node = override; return override; }
 
   // nvm
   const nvmDir = path.join(os.homedir(), '.nvm', 'versions', 'node');
@@ -261,6 +319,8 @@ function detectNode(): string | null {
 
 function detectRustc(): string | null {
   if (pathCache.rustc !== undefined) { return pathCache.rustc; }
+  const override = overrideFor('rustc');
+  if (override) { pathCache.rustc = override; return override; }
   const cargoBin = path.join(os.homedir(), '.cargo', 'bin', isWindows ? 'rustc.exe' : 'rustc');
   const found = whichSync('rustc')
     ?? firstExisting(cargoBin, '/usr/local/bin/rustc', '/opt/homebrew/bin/rustc');
@@ -270,6 +330,8 @@ function detectRustc(): string | null {
 
 function detectGo(): string | null {
   if (pathCache.go !== undefined) { return pathCache.go; }
+  const override = overrideFor('go');
+  if (override) { pathCache.go = override; return override; }
   const found = whichSync('go')
     ?? firstExisting(
       '/usr/local/go/bin/go', '/opt/homebrew/bin/go', '/usr/local/bin/go',
@@ -282,6 +344,8 @@ function detectGo(): string | null {
 
 function detectRuby(): string | null {
   if (pathCache.ruby !== undefined) { return pathCache.ruby; }
+  const override = overrideFor('ruby');
+  if (override) { pathCache.ruby = override; return override; }
   const found = whichSync('ruby')
     ?? firstExisting(
       path.join(os.homedir(), '.rbenv', 'shims', 'ruby'),
@@ -1415,7 +1479,7 @@ async function runJava(code: string, tmpDir: string, input: string, timeout: num
   if (!javac || !java) {
     return {
       output: '',
-      error: 'Java compiler (javac) not found. Please install JDK and set JAVA_HOME.',
+      error: 'Java compiler (javac) not found. Please install JDK and set JAVA_HOME, or set "codingtestkit.toolPath.javac" in Settings.',
       exitCode: -1,
       timedOut: false,
       executionTimeMs: 0,
@@ -1536,7 +1600,7 @@ async function runPython(code: string, tmpDir: string, input: string, timeout: n
   if (!python3) {
     return {
       output: '',
-      error: 'Python 3 not found. Please install Python 3.',
+      error: 'Python 3 not found. Please install Python 3, or set "codingtestkit.toolPath.python" in Settings.',
       exitCode: -1,
       timedOut: false,
       executionTimeMs: 0,
@@ -1555,7 +1619,7 @@ async function runCpp(code: string, tmpDir: string, input: string, timeout: numb
   if (!gpp) {
     return {
       output: '',
-      error: 'g++ not found. Please install a C++ compiler.',
+      error: 'g++ not found. Please install a C++ compiler, or set "codingtestkit.toolPath.cpp" in Settings.',
       exitCode: -1,
       timedOut: false,
       executionTimeMs: 0,
@@ -1592,7 +1656,7 @@ async function runKotlin(code: string, tmpDir: string, input: string, timeout: n
   if (!kotlinc) {
     return {
       output: '',
-      error: 'Kotlin compiler (kotlinc) not found. Please install Kotlin.',
+      error: 'Kotlin compiler (kotlinc) not found. Please install Kotlin, or set "codingtestkit.toolPath.kotlin" in Settings.',
       exitCode: -1,
       timedOut: false,
       executionTimeMs: 0,
@@ -1638,7 +1702,7 @@ async function runJavaScript(code: string, tmpDir: string, input: string, timeou
   if (!node) {
     return {
       output: '',
-      error: 'Node.js not found. Please install Node.js.',
+      error: 'Node.js not found. Please install Node.js, or set "codingtestkit.toolPath.node" in Settings.',
       exitCode: -1,
       timedOut: false,
       executionTimeMs: 0,
@@ -1657,7 +1721,7 @@ async function runRust(code: string, tmpDir: string, input: string, timeout: num
   if (!rustc) {
     return {
       output: '',
-      error: 'rustc not found. Please install Rust via https://rustup.rs',
+      error: 'rustc not found. Please install Rust via https://rustup.rs, or set "codingtestkit.toolPath.rust" in Settings.',
       exitCode: -1,
       timedOut: false,
       executionTimeMs: 0,
@@ -1692,7 +1756,7 @@ async function runGo(code: string, tmpDir: string, input: string, timeout: numbe
   if (!go) {
     return {
       output: '',
-      error: 'Go not found. Please install Go via https://go.dev/dl',
+      error: 'Go not found. Please install Go via https://go.dev/dl, or set "codingtestkit.toolPath.go" in Settings.',
       exitCode: -1,
       timedOut: false,
       executionTimeMs: 0,
@@ -1726,7 +1790,7 @@ async function runRuby(code: string, tmpDir: string, input: string, timeout: num
   if (!ruby) {
     return {
       output: '',
-      error: 'Ruby not found. Please install via https://www.ruby-lang.org (brew install ruby / rbenv / RubyInstaller)',
+      error: 'Ruby not found. Please install via https://www.ruby-lang.org (brew install ruby / rbenv / RubyInstaller), or set "codingtestkit.toolPath.ruby" in Settings.',
       exitCode: -1,
       timedOut: false,
       executionTimeMs: 0,
