@@ -29,6 +29,11 @@ jobs:
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
     runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        # Windows pwsh silently swallowed the esbuild invocation; bash exists
+        # on every runner and behaves identically across the matrix
+        shell: bash
     steps:
       - uses: actions/checkout@v4
 
