@@ -44,12 +44,25 @@ export function setToolPathOverrides(overrides: Partial<Record<ToolName, string>
   }
 }
 
-function overrideFor(tool: ToolName): string | null {
-  const p = toolPathOverrides[tool]?.trim();
-  return p && fs.existsSync(p) ? p : null;
+const isWindows = process.platform === 'win32';
+
+// A path only counts as a usable tool if it is a file the current user can
+// execute — IDE-bundled scripts (e.g. IntelliJ's kotlinc) sometimes exist
+// without the executable bit, and spawning those fails with EACCES.
+function canExec(p: string): boolean {
+  try {
+    if (!fs.statSync(p).isFile()) { return false; }
+    if (!isWindows) { fs.accessSync(p, fs.constants.X_OK); }
+    return true;
+  } catch {
+    return false;
+  }
 }
 
-const isWindows = process.platform === 'win32';
+function overrideFor(tool: ToolName): string | null {
+  const p = toolPathOverrides[tool]?.trim();
+  return p && canExec(p) ? p : null;
+}
 
 // Scans PATH directly instead of shelling out to `which`, which does not exist
 // on Windows (the extension host spawns without a shell).
@@ -62,11 +75,9 @@ function whichSync(cmd: string): string | null {
     if (!dir) { continue; }
     for (const ext of exts) {
       const candidate = path.join(dir, cmd + ext.toLowerCase());
-      try {
-        if (fs.statSync(candidate).isFile()) {
-          return candidate;
-        }
-      } catch { /* not here */ }
+      if (canExec(candidate)) {
+        return candidate;
+      }
     }
   }
   return null;
@@ -85,7 +96,7 @@ function runsOk(bin: string, args: string[]): boolean {
 
 function firstExisting(...candidates: string[]): string | null {
   for (const c of candidates) {
-    if (fs.existsSync(c)) {
+    if (canExec(c)) {
       return c;
     }
   }
@@ -243,7 +254,7 @@ function detectKotlinc(): string | null {
 
   // SDKMAN
   const sdkmanPath = path.join(os.homedir(), '.sdkman', 'candidates', 'kotlin', 'current', 'bin', 'kotlinc');
-  if (fs.existsSync(sdkmanPath)) { pathCache.kotlinc = sdkmanPath; return sdkmanPath; }
+  if (canExec(sdkmanPath)) { pathCache.kotlinc = sdkmanPath; return sdkmanPath; }
 
   // IntelliJ bundled (macOS)
   if (process.platform === 'darwin') {
@@ -256,7 +267,7 @@ function detectKotlinc(): string | null {
         const entries = fs.readdirSync(ideaBase).filter(e => e.startsWith('IntelliJIdea')).sort().reverse();
         for (const entry of entries) {
           const kotlinPlugin = path.join(ideaBase, entry, 'plugins', 'Kotlin', 'kotlinc', 'bin', 'kotlinc');
-          if (fs.existsSync(kotlinPlugin)) { pathCache.kotlinc = kotlinPlugin; return kotlinPlugin; }
+          if (canExec(kotlinPlugin)) { pathCache.kotlinc = kotlinPlugin; return kotlinPlugin; }
         }
       } catch { /* ignore */ }
     }
@@ -267,7 +278,7 @@ function detectKotlinc(): string | null {
         const apps = fs.readdirSync(appsDir).filter(e => e.startsWith('IntelliJ IDEA')).sort().reverse();
         for (const app of apps) {
           const p = path.join(appsDir, app, 'Contents', 'plugins', 'Kotlin', 'kotlinc', 'bin', 'kotlinc');
-          if (fs.existsSync(p)) { pathCache.kotlinc = p; return p; }
+          if (canExec(p)) { pathCache.kotlinc = p; return p; }
         }
       } catch { /* ignore */ }
     }
@@ -284,7 +295,7 @@ function detectKotlinc(): string | null {
         const entries = fs.readdirSync(base).filter(e => e.startsWith('IntelliJ IDEA')).sort().reverse();
         for (const entry of entries) {
           const p = path.join(base, entry, 'plugins', 'Kotlin', 'kotlinc', 'bin', 'kotlinc.bat');
-          if (fs.existsSync(p)) { pathCache.kotlinc = p; return p; }
+          if (canExec(p)) { pathCache.kotlinc = p; return p; }
         }
       } catch { /* ignore */ }
     }

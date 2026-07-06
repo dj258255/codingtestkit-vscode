@@ -3,7 +3,7 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [main, "ci/**"]
   pull_request:
     branches: [main]
 
@@ -20,3 +20,28 @@ jobs:
 
       - run: npm ci
       - run: npm run package
+
+  # codeRunner를 실제 컴파일러로 실행하는 크로스 플랫폼 스모크 테스트
+  # (툴체인 감지, 실행, 시간/메모리 측정 검증)
+  smoke:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - run: npm ci
+      - run: npx esbuild test/smoke.ts --bundle --platform=node --outfile=out/smoke.js
+      - run: node out/smoke.js
