@@ -80,17 +80,21 @@ export function activate(context: vscode.ExtensionContext) {
     }
   };
 
-  // Mirror the webview timer in the status bar so it stays visible on any
+  // Mirror the webview timers in the status bar so they stay visible on any
   // tab or layout
   provider.onTimerUpdate = (data) => {
-    if (!data.active) {
+    const timers = data.timers ?? [];
+    if (timers.length === 0) {
       statusBarTimer.hide();
       return;
     }
-    statusBarTimer.text = `${data.running ? '$(watch)' : '$(debug-pause)'} ${data.text}`;
-    statusBarTimer.tooltip = data.mode === 'countdown'
-      ? 'CodingTestKit countdown — click to open the timer'
-      : 'CodingTestKit stopwatch — click to open the timer';
+    statusBarTimer.text = timers
+      .map((t) => {
+        const icon = !t.running ? '$(debug-pause)' : t.mode === 'countdown' ? '$(clock)' : '$(watch)';
+        return `${icon} ${t.text}`;
+      })
+      .join('  ');
+    statusBarTimer.tooltip = 'CodingTestKit timer — click to open';
     statusBarTimer.show();
   };
 
