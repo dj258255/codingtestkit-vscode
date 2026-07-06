@@ -90,6 +90,29 @@ export async function fetchCodeforcesProblem(problemId: string, cookies: string 
   return parseProblemPage(html, parsed, problemId);
 }
 
+// HTML captured from the browser fallback contains MathJax's rendered output
+// (visual spans + assistive MathML — both display in the webview, doubling
+// every formula, and their markup gets shredded by the translator). The
+// original TeX survives in the adjacent <script type="math/tex"> tags, so
+// drop the render artifacts and put the TeX back as $...$ for our own
+// KaTeX rendering.
+function restoreMathJaxTex($: cheerio.CheerioAPI): void {
+  const scripts = $('script[type^="math/tex"]');
+  if (scripts.length === 0) { return; }
+
+  $('.MathJax_Preview, .MathJax, .MathJax_Display, .MathJax_SVG, .MathJax_CHTML, .MJX_Assistive_MathML').remove();
+
+  scripts.each((_i, el) => {
+    const s = $(el);
+    const tex = s.text() ?? '';
+    const isDisplay = (s.attr('type') ?? '').includes('display');
+    const wrapped = isDisplay ? `$$${tex}$$` : `$${tex}$`;
+    // Escape so TeX like "x < y" cannot be parsed as HTML
+    const escaped = wrapped.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    s.replaceWith(escaped);
+  });
+}
+
 async function parseProblemPage(
   html: string,
   parsed: ParsedProblemId,
@@ -97,6 +120,7 @@ async function parseProblemPage(
 ): Promise<Problem> {
   const $ = cheerio.load(html);
 
+  restoreMathJaxTex($);
   fixImages($);
 
   // Extract title: .problem-statement .title, strip the letter prefix (e.g., "A. ")

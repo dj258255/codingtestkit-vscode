@@ -11,6 +11,21 @@ const TIMEOUT_MS = 10000;
 const PRE_PLACEHOLDER_PREFIX = '{{__PRE_BLOCK_';
 const PRE_PLACEHOLDER_SUFFIX = '__}}';
 
+// Markup that must never reach the translator: it rewrites attribute values
+// ("style" → "스타일") and breaks tags, shredding rendered math. Order
+// matters — KaTeX wrapper spans are masked before the bare <math> inside them.
+const PROTECTED_MARKUP: RegExp[] = [
+  /<pre[^>]*>[\s\S]*?<\/pre>/gi,
+  /<span class="katex[^"]*">[\s\S]*?<\/span>/gi,
+  /<math[^>]*>[\s\S]*?<\/math>/gi,
+  /<code[^>]*>[\s\S]*?<\/code>/gi,
+  // Tags carrying attributes (style/src/...) — the translator rewrites the
+  // attribute values themselves (style= → 스타일=). Bare tags like <p> are
+  // left inline; the translator handles those fine and they help sentence
+  // segmentation.
+  /<[a-zA-Z][a-zA-Z0-9]*\s[^>]*>/g,
+];
+
 function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
@@ -51,15 +66,17 @@ export function detectLanguage(text: string): string {
 
 function protectPreBlocks(html: string): { text: string; blocks: Map<string, string> } {
   const blocks = new Map<string, string>();
-  const preRegex = /<pre[^>]*>[\s\S]*?<\/pre>/gi;
   let index = 0;
+  let text = html;
 
-  const text = html.replace(preRegex, (match) => {
-    const placeholder = `${PRE_PLACEHOLDER_PREFIX}${index}${PRE_PLACEHOLDER_SUFFIX}`;
-    blocks.set(placeholder, match);
-    index++;
-    return placeholder;
-  });
+  for (const pattern of PROTECTED_MARKUP) {
+    text = text.replace(pattern, (match) => {
+      const placeholder = `${PRE_PLACEHOLDER_PREFIX}${index}${PRE_PLACEHOLDER_SUFFIX}`;
+      blocks.set(placeholder, match);
+      index++;
+      return placeholder;
+    });
+  }
 
   return { text, blocks };
 }
@@ -67,7 +84,16 @@ function protectPreBlocks(html: string): { text: string; blocks: Map<string, str
 function restorePreBlocks(text: string, blocks: Map<string, string>): string {
   let result = text;
   blocks.forEach((original, placeholder) => {
-    result = result.replace(placeholder, original);
+    if (result.includes(placeholder)) {
+      result = result.replace(placeholder, original);
+      return;
+    }
+    // The translator sometimes inserts spaces into the placeholder itself —
+    // fall back to a whitespace-tolerant match so the block is not lost.
+    const loose = new RegExp(
+      placeholder.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/([{}_])/g, '$1\\s*'),
+    );
+    result = result.replace(loose, original);
   });
   return result;
 }
