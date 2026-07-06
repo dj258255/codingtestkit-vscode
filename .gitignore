@@ -9,3 +9,6 @@ firebase-debug.log
 .DS_Store
 out/
 Thumbs.db
+
+# iCloud sync duplicate copies (repo lives in an iCloud-synced folder)
+* [0-9].md
