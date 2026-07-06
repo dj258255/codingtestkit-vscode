@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.3.1] - 2026-07-07
+
+### Fixed
+
+- **Math in Browser-Fetched Codeforces Problems**: Problems fetched through the Cloudflare browser fallback showed every formula twice (MathJax's visual output plus its assistive MathML) and translation shredded the math markup entirely. The crawler now strips MathJax render artifacts and restores the original TeX for clean KaTeX rendering.
+- **Translation Breaking Markup**: The translator no longer touches KaTeX/MathML math, `<code>` blocks, or any tag carrying attributes — previously attribute values themselves got translated (`style=` → `스타일=`), corrupting the layout.
+
 ## [1.3.0] - 2026-07-07
 
 ### Added
