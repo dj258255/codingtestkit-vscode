@@ -47,6 +47,11 @@ CodingTestKit was built to **replicate the real exam environment inside VS Code*
 | C++ | O | O | O | O |
 | Kotlin | O | X | O | O |
 | JavaScript | - | - | O | O |
+| Rust | X | X | O | O |
+| Go | O | X | O | O |
+| Ruby | O | X | O | O |
+
+> Local test execution works for **all languages on all platforms** — the table above marks online submission support only.
 
 ---
 
@@ -283,6 +288,11 @@ Available on [Open VSX Registry](https://open-vsx.org/extension/codingtestkit/co
   - C++: g++ or clang++
   - Kotlin: kotlinc
   - JavaScript: Node.js
+  - Rust: rustc (rustup)
+  - Go: go
+  - Ruby: ruby
+
+  Only install what you use — each language is detected independently, and `codingtestkit.toolPath.*` settings let you point at a compiler manually when auto-detection misses it.
 
 ## Build from Source
 
@@ -340,6 +350,11 @@ CodingTestKit은 **실제 시험 환경을 VS Code 안에서 그대로 재현**�
 | C++ | O | O | O | O |
 | Kotlin | O | X | O | O |
 | JavaScript | - | - | O | O |
+| Rust | X | X | O | O |
+| Go | O | X | O | O |
+| Ruby | O | X | O | O |
+
+> 로컬 테스트 실행은 **모든 언어 × 모든 플랫폼**에서 가능합니다 — 위 표는 온라인 제출 지원 여부입니다.
 
 ---
 
@@ -576,6 +591,11 @@ LeetCode와 Codeforces는 기본 브라우저에서 문제 페이지가 열립�
   - C++: g++ 또는 clang++
   - Kotlin: kotlinc
   - JavaScript: Node.js
+  - Rust: rustc (rustup)
+  - Go: go
+  - Ruby: ruby
+
+  사용하는 언어만 설치하면 됩니다 — 언어별로 독립적으로 감지되며, 자동 감지가 실패하면 `codingtestkit.toolPath.*` 설정으로 직접 경로를 지정할 수 있습니다.
 
 ## 소스에서 빌드
 

@@ -1,5 +1,26 @@
 # Changelog
 
+## [1.3.0] - 2026-07-07
+
+### Added
+
+- **Rust · Go · Ruby Support**: Local test execution (stdin + Programmers-style function mode with literal conversion and debug-output separation), toolchain auto-detection, default code templates, and submit mappings (LeetCode/Codeforces; Programmers for Go/Ruby).
+- **Configurable Tool Paths**: New `codingtestkit.toolPath.*` settings (java, javac, python, cpp, kotlin, node, rust, go, ruby) override auto-detection when compilers live in non-standard locations. Every "not found" error now names the matching setting.
+- **Timer Everywhere**: The active stopwatch/countdown now mirrors to the status bar (click to open the Timer tab) and to a mini bar at the bottom of the Problem tab with per-timer start/pause buttons and a countdown progress strip.
+- **Codeforces Browser Fallback**: When Cloudflare blocks direct crawling (currently the common case), the extension opens the user's own Chromium offscreen to pass the challenge and fetch the full problem — statement, sample tests, and limits — instead of degrading to metadata-only.
+- **Cross-Platform CI Smoke Tests**: ubuntu/windows/macos runners execute all 8 languages, the function-mode wrapper, and memory measurement against real toolchains on every push.
+
+### Fixed
+
+- **Windows Local Test Execution**: Tool detection relied on the Unix `which` command and Unix-only fallback paths, so every compiler lookup failed on Windows ("g++ not found") even when the terminal worked. Detection now scans PATH directly (honoring PATHEXT), knows Windows install locations (MSYS2/MinGW/TDM-GCC/Strawberry, Adoptium/Corretto/Zulu, JetBrains), validates the Microsoft Store python stub, emits `solution.exe`, wraps `kotlinc.bat` in cmd.exe, and kills timed-out process trees with `taskkill /T /F`.
+- **Korean I/O on Windows**: JVM tools now force UTF-8 (`-Dfile.encoding` etc.) and Python gets `PYTHONIOENCODING=utf-8`, preventing MS949 mojibake.
+- **Bogus Compile Timeouts**: Compilation gets its own 60s limit, so slow compilers (kotlinc cold start) no longer surface as run timeouts.
+- **Non-Executable Toolchains**: Detection now requires execute permission, skipping entries like IDE-bundled kotlinc scripts without the executable bit (previously EACCES at spawn).
+
+### Improved
+
+- **Memory Measurement**: Linux reads the kernel-recorded peak (`VmHWM`), Windows reads `PeakWorkingSet64` — both monotonic, so polling can no longer miss spikes — and an immediate first sample means sub-50ms runs report real values instead of 0. Polling is fully async and never blocks the extension host.
+
 ## [1.2.2] - 2026-04-28
 
 ### Added
