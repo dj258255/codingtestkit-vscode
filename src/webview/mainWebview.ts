@@ -276,6 +276,15 @@ label { font-size: 12px; display: flex; align-items: center; gap: var(--ctk-spac
 #problemContent h3 { font-size: 16px; margin-top: 16px; margin-bottom: 6px; }
 #problemContent p { margin-bottom: 8px; }
 #problemContent img { max-width: 100%; border-radius: var(--ctk-radius-sm); }
+/* Codeforces serves some formulas and diagrams as black-on-transparent
+   images — invisible on dark themes. Invert them there; hue-rotate keeps
+   any colors close to the original. Light themes show them as-is. */
+body.vscode-dark #problemContent img.tex-formula,
+body.vscode-dark #problemContent img.tex-graphics,
+body.vscode-high-contrast #problemContent img.tex-formula,
+body.vscode-high-contrast #problemContent img.tex-graphics {
+  filter: invert(0.92) hue-rotate(180deg);
+}
 #problemContent pre {
   background: var(--vscode-textCodeBlock-background, #2d2d2d);
   padding: var(--ctk-space-md); border-radius: var(--ctk-radius-md); overflow-x: auto;
