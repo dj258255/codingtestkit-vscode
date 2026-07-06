@@ -8,7 +8,7 @@
 - **Translation Breaking Markup**: The translator no longer touches KaTeX/MathML math, `<code>` blocks, or any tag carrying attributes — previously attribute values themselves got translated (`style=` → `스타일=`), corrupting the layout.
 - **Previously Saved Problems**: Problems fetched with the pre-fix version carry the corruption inside their saved `problem.json`; descriptions are now cleaned at load time as well, so existing folders display and translate correctly without re-fetching.
 - **TeX with Comparison Operators**: Formulas like `$x < y$` arrive entity-encoded from HTML and failed to render; entities are now decoded before KaTeX.
-- **Formula Images in Dark Themes**: Codeforces serves some formulas and diagrams as black-on-transparent images, invisible on dark themes; they are now inverted on dark and high-contrast themes and untouched on light themes.
+- **Transparent Images in Dark Themes**: Codeforces serves some formulas and diagrams as black-on-transparent images, invisible on dark themes — they are now inverted there. Images from every other platform (LeetCode diagrams etc.) get a white backing on dark themes instead, so transparent artwork stays readable without distorting colors. Light themes are unchanged.
 
 ## [1.3.0] - 2026-07-07
 
