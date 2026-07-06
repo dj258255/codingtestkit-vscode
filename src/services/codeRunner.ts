@@ -1255,38 +1255,72 @@ function executeProcess(
       windowsVerbatimArguments: verbatim,
     });
 
-    // Memory polling: `ps` on macOS/Linux, `tasklist` on Windows.
-    // Async so slow polls never block the extension host; tasklist itself
-    // takes ~100ms, so poll less often there.
+    // Memory measurement. Linux and Windows expose a kernel-recorded peak
+    // (VmHWM / PeakWorkingSet64), which is monotonic — polls can never miss a
+    // spike between samples. macOS has no cheap peak counter, so we sample the
+    // current RSS via `ps` and keep the maximum. All polls run async so a slow
+    // reader never blocks the extension host.
     if (child.pid) {
+      const pid = child.pid;
       let pollInFlight = false;
-      const pollInterval = isWindows ? 300 : MEMORY_POLL_INTERVAL;
+
+      const recordPeakKB = (kb: number) => {
+        if (!isNaN(kb) && kb > peakMemoryKB) { peakMemoryKB = kb; }
+      };
+
+      let pollFn: () => void;
+      let pollInterval = MEMORY_POLL_INTERVAL;
+
+      if (process.platform === 'linux') {
+        pollFn = () => {
+          fs.readFile(`/proc/${pid}/status`, 'utf-8', (err, data) => {
+            pollInFlight = false;
+            if (err || !data) { return; }
+            const m = /VmHWM:\s*(\d+)\s*kB/.exec(data);
+            if (m) { recordPeakKB(parseInt(m[1], 10)); }
+          });
+        };
+      } else if (isWindows) {
+        // PowerShell startup is slow (~300ms), but PeakWorkingSet64 being
+        // monotonic means a sparse poll still converges on the true maximum.
+        pollInterval = 500;
+        pollFn = () => {
+          execFile(
+            'powershell',
+            ['-NoProfile', '-Command', `(Get-Process -Id ${pid}).PeakWorkingSet64`],
+            { timeout: 3000 },
+            (err, out) => {
+              pollInFlight = false;
+              if (err || !out) { return; }
+              const bytes = parseInt(String(out).trim(), 10);
+              if (!isNaN(bytes)) { recordPeakKB(Math.round(bytes / 1024)); }
+            },
+          );
+        };
+      } else {
+        pollFn = () => {
+          execFile('ps', ['-o', 'rss=', '-p', String(pid)], { timeout: 2000 }, (err, out) => {
+            pollInFlight = false;
+            if (err || !out) { return; }
+            recordPeakKB(parseInt(String(out).trim(), 10));
+          });
+        };
+      }
+
       memoryTimer = setInterval(() => {
-        if (!child.pid || killed) {
+        if (killed) {
           if (memoryTimer) { clearInterval(memoryTimer); }
           return;
         }
         if (pollInFlight) { return; }
         pollInFlight = true;
-        const pollCmd = isWindows
-          ? { bin: 'tasklist', args: ['/FI', `PID eq ${child.pid}`, '/NH', '/FO', 'CSV'] }
-          : { bin: 'ps', args: ['-o', 'rss=', '-p', String(child.pid)] };
-        execFile(pollCmd.bin, pollCmd.args, { timeout: 2000 }, (err, out) => {
-          pollInFlight = false;
-          if (err || !out) { return; }
-          let rss = NaN;
-          if (isWindows) {
-            // Last CSV field looks like "12,345 K"
-            const m = /"([\d,.]+)\s*K"/.exec(out);
-            if (m) { rss = parseInt(m[1].replace(/[,.]/g, ''), 10); }
-          } else {
-            rss = parseInt(out.trim(), 10);
-          }
-          if (!isNaN(rss) && rss > peakMemoryKB) {
-            peakMemoryKB = rss;
-          }
-        });
+        pollFn();
       }, pollInterval);
+
+      // Sample immediately so runs shorter than one poll interval still
+      // report memory instead of 0
+      pollInFlight = true;
+      pollFn();
     }
 
     // Timeout handling
