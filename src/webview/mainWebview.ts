@@ -119,6 +119,31 @@ html, body {
 .tab-content.active { display: block; }
 #app { display: flex; flex-direction: column; height: 100vh; }
 
+/* ===== PROBLEM TAB TIMER BAR ===== */
+#problemTimerBar {
+  display: none;
+  position: sticky;
+  bottom: 0;
+  margin-top: var(--ctk-space-md);
+  padding: 5px 10px;
+  border-radius: 6px;
+  background: var(--vscode-editorWidget-background, #252526);
+  border: 1px solid var(--ctk-glass-border, rgba(128,128,128,0.25));
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  z-index: 5;
+}
+#problemTimerBar.visible { display: flex; }
+#problemTimerBar .ptb-mode { color: var(--vscode-descriptionForeground, #999); }
+#problemTimerBar .ptb-time {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+}
+#problemTimerBar .ptb-time:hover { text-decoration: underline; }
+#problemTimerBar .ptb-spacer { flex: 1; }
+
 /* ===== COMMON CONTROLS ===== */
 button, .btn {
   padding: 5px 12px;
@@ -765,6 +790,13 @@ label { font-size: 12px; display: flex; align-items: center; gap: var(--ctk-spac
       <p style="font-size:12px;" data-ko="문제 번호를 입력하고 가져오기를 클릭하세요." data-en="Enter a problem ID and click Fetch to get started.">Enter a problem ID and click Fetch to get started.</p>
     </div>
   </div>
+  <!-- Mini timer bar: mirrors the Timer tab while a timer is active -->
+  <div id="problemTimerBar">
+    <span class="ptb-mode" id="ptbMode"></span>
+    <span class="ptb-time" id="ptbTime" data-tooltip-ko="타이머 탭 열기" data-tooltip-en="Open timer tab">00:00</span>
+    <span class="ptb-spacer"></span>
+    <button id="ptbToggleBtn" class="secondary" style="padding:2px 12px;">Start</button>
+  </div>
 </div>
 
 <!-- ================= TAB 2: TEST ================= -->
@@ -1101,6 +1133,8 @@ label { font-size: 12px; display: flex; align-items: center; gap: var(--ctk-spac
     cdRemainingMs: 30 * 60 * 1000,
     cdStartTime: 0,
     cdInterval: null,
+    // Which timer the mini bar / status bar mirrors ('sw' | 'cd' | null)
+    activeTimer: null,
     // Settings
     uiLang: 'KO',
     loginStatus: null,
@@ -2655,6 +2689,8 @@ label { font-size: 12px; display: flex; align-items: center; gap: var(--ctk-spac
     $('#swStartBtn').disabled = true;
     $('#swStopBtn').disabled = false;
     $('#swLapBtn').disabled = false;
+    state.activeTimer = 'sw';
+    notifyTimerState(true);
   });
 
   $('#swStopBtn').addEventListener('click', function() {
@@ -2665,6 +2701,7 @@ label { font-size: 12px; display: flex; align-items: center; gap: var(--ctk-spac
     $('#swStartBtn').disabled = false;
     $('#swStopBtn').disabled = true;
     $('#swLapBtn').disabled = true;
+    notifyTimerState(true);
   });
 
   $('#swResetBtn').addEventListener('click', function() {
@@ -2677,6 +2714,8 @@ label { font-size: 12px; display: flex; align-items: center; gap: var(--ctk-spac
     $('#swStopBtn').disabled = true;
     $('#swLapBtn').disabled = true;
     $('#lapTableBody').textContent = '';
+    if (state.activeTimer === 'sw') { state.activeTimer = null; }
+    notifyTimerState(true);
   });
 
   $('#swLapBtn').addEventListener('click', function() {
@@ -2691,6 +2730,7 @@ label { font-size: 12px; display: flex; align-items: center; gap: var(--ctk-spac
   function updateStopwatch() {
     state.swElapsed = Date.now() - state.swStartTime;
     $('#stopwatchDisplay').textContent = formatTime(state.swElapsed);
+    notifyTimerState();
   }
 
   function renderLaps() {
@@ -2719,6 +2759,57 @@ label { font-size: 12px; display: flex; align-items: center; gap: var(--ctk-spac
       body.appendChild(tr);
     });
   }
+
+  // ===== TIMER VISIBILITY (problem-tab mini bar + status bar mirror) =====
+  var lastTimerPost = 0;
+
+  function formatClock(ms) {
+    var totalSec = Math.floor(ms / 1000);
+    var h = Math.floor(totalSec / 3600);
+    var m = Math.floor((totalSec % 3600) / 60);
+    var s = totalSec % 60;
+    function pad(n) { return n < 10 ? '0' + n : String(n); }
+    return h > 0 ? h + ':' + pad(m) + ':' + pad(s) : pad(m) + ':' + pad(s);
+  }
+
+  // Pushes the active timer to the problem-tab bar and (throttled to 1/sec)
+  // to the extension for the status bar item.
+  function notifyTimerState(force) {
+    var mode = null, ms = 0, running = false;
+    var cdMidway = state.cdRemainingMs > 0 && state.cdRemainingMs < state.cdTotalMs;
+    if (state.cdRunning || (state.activeTimer === 'cd' && cdMidway)) {
+      mode = 'countdown'; ms = state.cdRemainingMs; running = state.cdRunning;
+    } else if (state.swRunning || (state.activeTimer === 'sw' && state.swElapsed > 0)) {
+      mode = 'stopwatch'; ms = state.swElapsed; running = state.swRunning;
+    }
+
+    var bar = $('#problemTimerBar');
+    if (!mode) {
+      bar.classList.remove('visible');
+    } else {
+      bar.classList.add('visible');
+      $('#ptbMode').textContent = mode === 'countdown' ? t('카운트다운', 'Countdown') : t('스톱워치', 'Stopwatch');
+      $('#ptbTime').textContent = formatClock(ms);
+      $('#ptbToggleBtn').textContent = running ? t('정지', 'Pause') : t('시작', 'Start');
+    }
+
+    var now = Date.now();
+    if (force || now - lastTimerPost >= 1000) {
+      lastTimerPost = now;
+      vscode.postMessage({ command: 'timerState', data: {
+        active: !!mode, running: running, mode: mode, text: mode ? formatClock(ms) : '',
+      } });
+    }
+  }
+
+  $('#ptbTime').addEventListener('click', function() { switchTab('tabTimer'); });
+  $('#ptbToggleBtn').addEventListener('click', function() {
+    if (state.activeTimer === 'cd' || state.cdRunning) {
+      (state.cdRunning ? $('#cdStopBtn') : $('#cdStartBtn')).click();
+    } else {
+      (state.swRunning ? $('#swStopBtn') : $('#swStartBtn')).click();
+    }
+  });
 
   // ===== COUNTDOWN =====
   $('#cdCircular').addEventListener('change', function() {
@@ -2788,16 +2879,21 @@ label { font-size: 12px; display: flex; align-items: center; gap: var(--ctk-spac
       updateCountdownDisplay();
       drawCountdownCanvas();
       updateProgressBar();
+      notifyTimerState();
       if (state.cdRemainingMs <= 0) {
         clearInterval(state.cdInterval);
         state.cdRunning = false;
         $('#cdStartBtn').disabled = false;
         $('#cdStopBtn').disabled = true;
+        state.activeTimer = null;
+        notifyTimerState(true);
         vscode.postMessage({ command: 'countdownComplete', data: {} });
       }
     }, 100);
     $('#cdStartBtn').disabled = true;
     $('#cdStopBtn').disabled = false;
+    state.activeTimer = 'cd';
+    notifyTimerState(true);
   });
 
   $('#cdStopBtn').addEventListener('click', function() {
@@ -2806,6 +2902,7 @@ label { font-size: 12px; display: flex; align-items: center; gap: var(--ctk-spac
     state.cdRunning = false;
     $('#cdStartBtn').disabled = false;
     $('#cdStopBtn').disabled = true;
+    notifyTimerState(true);
   });
 
   // Click canvas center button to toggle play/pause
@@ -3268,6 +3365,11 @@ label { font-size: 12px; display: flex; align-items: center; gap: var(--ctk-spac
         $('#problemContent').textContent = '';
         $('#problemIdInput').value = '';
         renderTestCases();
+        break;
+      }
+
+      case 'showTimerTab': {
+        switchTab('tabTimer');
         break;
       }
 

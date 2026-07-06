@@ -31,6 +31,7 @@ export class CodingTestKitViewProvider implements vscode.WebviewViewProvider {
   private _isTranslated = false;
 
   public onStatusUpdate?: (data: { platform?: string; problemId?: string; title?: string }) => void;
+  public onTimerUpdate?: (data: { active: boolean; running: boolean; mode: string | null; text: string }) => void;
 
   constructor(private readonly _context: vscode.ExtensionContext) {}
 
@@ -195,6 +196,9 @@ export class CodingTestKitViewProvider implements vscode.WebviewViewProvider {
           break;
         case 'translateBatch':
           await this._translateBatch(data);
+          break;
+        case 'timerState':
+          this.onTimerUpdate?.(data);
           break;
         case 'countdownComplete':
           vscode.window.showWarningMessage(

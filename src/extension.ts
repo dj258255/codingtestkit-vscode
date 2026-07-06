@@ -23,6 +23,7 @@ function applyToolPathOverrides(): void {
 
 let statusBarProblem: vscode.StatusBarItem;
 let statusBarPlatform: vscode.StatusBarItem;
+let statusBarTimer: vscode.StatusBarItem;
 
 export function activate(context: vscode.ExtensionContext) {
   // Initialize services
@@ -43,6 +44,10 @@ export function activate(context: vscode.ExtensionContext) {
   statusBarProblem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 99);
   statusBarProblem.tooltip = 'Current problem';
   context.subscriptions.push(statusBarProblem);
+
+  statusBarTimer = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 98);
+  statusBarTimer.command = 'codingtestkit.openTimer';
+  context.subscriptions.push(statusBarTimer);
 
   // Register webview provider
   const provider = new CodingTestKitViewProvider(context);
@@ -73,6 +78,20 @@ export function activate(context: vscode.ExtensionContext) {
       statusBarProblem.text = `$(file-code) #${data.problemId} ${data.title || ''}`.trim();
       statusBarProblem.show();
     }
+  };
+
+  // Mirror the webview timer in the status bar so it stays visible on any
+  // tab or layout
+  provider.onTimerUpdate = (data) => {
+    if (!data.active) {
+      statusBarTimer.hide();
+      return;
+    }
+    statusBarTimer.text = `${data.running ? '$(watch)' : '$(debug-pause)'} ${data.text}`;
+    statusBarTimer.tooltip = data.mode === 'countdown'
+      ? 'CodingTestKit countdown — click to open the timer'
+      : 'CodingTestKit stopwatch — click to open the timer';
+    statusBarTimer.show();
   };
 
   context.subscriptions.push(
@@ -106,6 +125,10 @@ export function activate(context: vscode.ExtensionContext) {
     }),
     vscode.commands.registerCommand('codingtestkit.translate', () => {
       provider.sendCommand('translate');
+    }),
+    vscode.commands.registerCommand('codingtestkit.openTimer', async () => {
+      await vscode.commands.executeCommand('codingtestkit.mainView.focus');
+      provider.sendCommand('showTimerTab');
     })
   );
 
@@ -142,4 +165,5 @@ export function activate(context: vscode.ExtensionContext) {
 export function deactivate() {
   if (statusBarProblem) { statusBarProblem.dispose(); }
   if (statusBarPlatform) { statusBarPlatform.dispose(); }
+  if (statusBarTimer) { statusBarTimer.dispose(); }
 }

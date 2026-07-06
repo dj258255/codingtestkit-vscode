@@ -85,6 +85,10 @@
       {
         "command": "codingtestkit.translate",
         "title": "CodingTestKit: Translate Problem"
+      },
+      {
+        "command": "codingtestkit.openTimer",
+        "title": "CodingTestKit: Open Timer"
       }
     ],
     "keybindings": [
