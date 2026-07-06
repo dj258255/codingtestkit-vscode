@@ -2,6 +2,7 @@ import axios from 'axios';
 import * as cheerio from 'cheerio';
 import { Problem, ProblemSource, TestCase } from '../models/models';
 import { fetchAllProblems } from './codeforcesApi';
+import { fetchHtmlViaBrowser } from './browserFetch';
 
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36';
 const CF_BASE = 'https://codeforces.com';
@@ -73,11 +74,27 @@ export async function fetchCodeforcesProblem(problemId: string, cookies: string 
   });
 
   // Cloudflare challenge detection: 403 or no .problem-statement in HTML
-  const html: string = typeof response.data === 'string' ? response.data : '';
+  let html: string = typeof response.data === 'string' ? response.data : '';
   if (response.status === 403 || !html.includes('problem-statement')) {
-    return fetchCodeforcesProblemViaApi(parsed, problemId);
+    // Fallback 1: let the user's real browser pass the Cloudflare challenge
+    // and hand back the fully rendered page.
+    const browserHtml = await fetchHtmlViaBrowser(url, '.problem-statement');
+    if (browserHtml && browserHtml.includes('problem-statement')) {
+      html = browserHtml;
+    } else {
+      // Fallback 2 (degraded): metadata-only problem from the official API
+      return fetchCodeforcesProblemViaApi(parsed, problemId);
+    }
   }
 
+  return parseProblemPage(html, parsed, problemId);
+}
+
+async function parseProblemPage(
+  html: string,
+  parsed: ParsedProblemId,
+  problemId: string,
+): Promise<Problem> {
   const $ = cheerio.load(html);
 
   fixImages($);
