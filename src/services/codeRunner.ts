@@ -24,6 +24,9 @@ interface DetectedPaths {
   gpp: string | null;
   kotlinc: string | null;
   node: string | null;
+  rustc: string | null;
+  go: string | null;
+  ruby: string | null;
 }
 
 const pathCache: Partial<DetectedPaths> = {};
@@ -256,6 +259,39 @@ function detectNode(): string | null {
   return found;
 }
 
+function detectRustc(): string | null {
+  if (pathCache.rustc !== undefined) { return pathCache.rustc; }
+  const cargoBin = path.join(os.homedir(), '.cargo', 'bin', isWindows ? 'rustc.exe' : 'rustc');
+  const found = whichSync('rustc')
+    ?? firstExisting(cargoBin, '/usr/local/bin/rustc', '/opt/homebrew/bin/rustc');
+  pathCache.rustc = found;
+  return found;
+}
+
+function detectGo(): string | null {
+  if (pathCache.go !== undefined) { return pathCache.go; }
+  const found = whichSync('go')
+    ?? firstExisting(
+      '/usr/local/go/bin/go', '/opt/homebrew/bin/go', '/usr/local/bin/go',
+      path.join(os.homedir(), 'go', 'bin', isWindows ? 'go.exe' : 'go'),
+      'C:\\Program Files\\Go\\bin\\go.exe',
+    );
+  pathCache.go = found;
+  return found;
+}
+
+function detectRuby(): string | null {
+  if (pathCache.ruby !== undefined) { return pathCache.ruby; }
+  const found = whichSync('ruby')
+    ?? firstExisting(
+      path.join(os.homedir(), '.rbenv', 'shims', 'ruby'),
+      '/opt/homebrew/opt/ruby/bin/ruby', '/usr/local/opt/ruby/bin/ruby',
+      '/usr/bin/ruby',
+    );
+  pathCache.ruby = found;
+  return found;
+}
+
 export function getDetectedPaths(): DetectedPaths {
   return {
     java: detectJava(),
@@ -264,6 +300,9 @@ export function getDetectedPaths(): DetectedPaths {
     gpp: detectGpp(),
     kotlinc: detectKotlinc(),
     node: detectNode(),
+    rustc: detectRustc(),
+    go: detectGo(),
+    ruby: detectRuby(),
   };
 }
 
@@ -283,6 +322,13 @@ function hasMainFunction(code: string, language: Language): boolean {
       return /fun\s+main\s*\(/.test(code);
     case Language.JAVASCRIPT:
       return /readline/.test(code) || /process\.stdin/.test(code);
+    case Language.RUST:
+      return /fn\s+main\s*\(/.test(code);
+    case Language.GO:
+      return /func\s+main\s*\(/.test(code);
+    case Language.RUBY:
+      // Ruby has no main; treat stdin usage as script-style code
+      return /gets|STDIN/.test(code);
     default:
       return false;
   }
@@ -935,6 +981,177 @@ if (typeof _result === 'string') {
 }
 
 // ---------------------------------------------------------------------------
+// Rust helpers
+// ---------------------------------------------------------------------------
+
+// [1,2,3] → vec![1,2,3], "abc" → String::from("abc"), nested arrays recurse
+function toRustLiteral(value: string): string {
+  const v = value.trim();
+  if (v.startsWith('"')) { return `String::from(${v})`; }
+  if (!v.startsWith('[')) { return v; }
+
+  if (v.startsWith('[[')) {
+    const inner = v.slice(1, -1);
+    const arrays: string[] = [];
+    let depth = 0;
+    let current = '';
+    for (const c of inner) {
+      if (c === '[') { depth++; }
+      if (c === ']') { depth--; }
+      current += c;
+      if (depth === 0 && current.trim().length > 0) {
+        const arr = current.trim().replace(/^,/, '').trim();
+        if (arr.length > 0) { arrays.push(arr); }
+        current = '';
+      }
+    }
+    return `vec![${arrays.map(toRustLiteral).join(', ')}]`;
+  }
+
+  const content = v.slice(1, -1).trim();
+  if (content.length === 0) { return 'vec![]'; }
+  const first = (content.split(',')[0] ?? '').trim();
+  if (first.startsWith('"')) {
+    const items = content.split(',').map(s => `String::from(${s.trim()})`).join(', ');
+    return `vec![${items}]`;
+  }
+  return `vec![${content}]`;
+}
+
+function wrapRust(code: string, _parameterNames: string[], input: string): string {
+  const inputLines = input.split('\n').filter(l => l.trim().length > 0);
+  const args = inputLines.map(toRustLiteral).join(', ');
+
+  // Method name: solution first, otherwise the last non-main fn
+  const fnNames: string[] = [];
+  const fnRegex = /fn\s+(\w+)\s*\(/g;
+  let m: RegExpExecArray | null;
+  while ((m = fnRegex.exec(code)) !== null) {
+    if (m[1] !== 'main') { fnNames.push(m[1]); }
+  }
+  const methodName = fnNames.includes('solution') ? 'solution' : (fnNames[fnNames.length - 1] ?? 'solution');
+
+  // LeetCode style (impl Solution): add struct decl and call as associated fn
+  const hasImpl = code.includes('impl Solution');
+  const structDecl = hasImpl && !code.includes('struct Solution') ? 'struct Solution;\n\n' : '';
+  const callExpr = hasImpl ? `Solution::${methodName}(${args})` : `${methodName}(${args})`;
+
+  return `${structDecl}${code}
+
+fn main() {
+    let _result = ${callExpr};
+    // {:?} prints strings quoted and vectors as [a, b] — strip spaces to match [a,b]
+    let _s = format!("{:?}", _result).replace(", ", ",");
+    println!("{}", _s);
+}
+`;
+}
+
+// ---------------------------------------------------------------------------
+// Go helpers
+// ---------------------------------------------------------------------------
+
+function detectGoElementType(content: string): string {
+  const first = (content.split(',')[0] ?? '').trim();
+  if (first.startsWith('"')) { return 'string'; }
+  if (first === 'true' || first === 'false') { return 'bool'; }
+  if (first.includes('.')) { return 'float64'; }
+  const n = Number(first);
+  if (Number.isFinite(n) && Number.isInteger(n) && (n > 2147483647 || n < -2147483648)) { return 'int64'; }
+  return 'int';
+}
+
+// [1,2,3] → []int{1,2,3}, [[1,2],[3,4]] → [][]int{{1,2},{3,4}}
+function toGoLiteral(value: string): string {
+  const v = value.trim();
+  if (!v.startsWith('[')) { return v; }
+
+  if (v.startsWith('[[')) {
+    // Detect element type from the first inner array
+    const firstInner = v.slice(1).split('[')[1]?.split(']')[0] ?? '';
+    const elemType = detectGoElementType(firstInner);
+    return `[][]${elemType}` + v.replace(/\[/g, '{').replace(/\]/g, '}');
+  }
+
+  const content = v.slice(1, -1).trim();
+  if (content.length === 0) { return '[]int{}'; }
+  const elemType = detectGoElementType(content);
+  return `[]${elemType}{${content}}`;
+}
+
+function wrapGo(code: string, _parameterNames: string[], input: string): string {
+  const inputLines = input.split('\n').filter(l => l.trim().length > 0);
+  const args = inputLines.map(toGoLiteral).join(', ');
+
+  const funcNames: string[] = [];
+  const funcRegex = /func\s+(\w+)\s*\(/g;
+  let m: RegExpExecArray | null;
+  while ((m = funcRegex.exec(code)) !== null) {
+    if (m[1] !== 'main') { funcNames.push(m[1]); }
+  }
+  const methodName = funcNames.includes('solution') ? 'solution' : (funcNames[funcNames.length - 1] ?? 'solution');
+
+  // Strip any user package declaration; the wrapper provides package main
+  const body = code.split('\n').filter(l => !l.trim().startsWith('package ')).join('\n');
+
+  // Import json/os only, so a user-level `import "fmt"` never conflicts
+  return `package main
+
+import (
+	"encoding/json"
+	"os"
+)
+
+${body}
+
+func main() {
+	// Redirect user fmt.Print* to stderr; only the return value goes to stdout
+	_realStdout := os.Stdout
+	os.Stdout = os.Stderr
+	_result := ${methodName}(${args})
+	os.Stdout = _realStdout
+	_b, _ := json.Marshal(_result)
+	os.Stdout.Write(append(_b, '\\n'))
+}
+`;
+}
+
+// ---------------------------------------------------------------------------
+// Ruby helpers
+// ---------------------------------------------------------------------------
+
+function wrapRuby(code: string, _parameterNames: string[], input: string): string {
+  const inputLines = input.split('\n').filter(l => l.trim().length > 0);
+  const args = inputLines.map(l => l.trim()).join(', ');
+
+  const defNames: string[] = [];
+  const defRegex = /def\s+(\w+)/g;
+  let m: RegExpExecArray | null;
+  while ((m = defRegex.exec(code)) !== null) {
+    if (m[1] !== 'initialize') { defNames.push(m[1]); }
+  }
+  const methodName = defNames.includes('solution') ? 'solution' : (defNames[defNames.length - 1] ?? 'solution');
+
+  return `require 'json'
+
+${code}
+
+# Redirect user puts to stderr, then print only the return value
+_orig_stdout = $stdout
+$stdout = $stderr
+_result = ${methodName}(${args})
+$stdout = _orig_stdout
+if _result.is_a?(String)
+  puts "\\"#{_result}\\""
+elsif _result.is_a?(Array)
+  puts _result.to_json
+else
+  puts _result
+end
+`;
+}
+
+// ---------------------------------------------------------------------------
 // Process execution
 // ---------------------------------------------------------------------------
 
@@ -1108,6 +1325,12 @@ export async function run(
         return await runKotlin(code, tmpDir, input, timeout);
       case Language.JAVASCRIPT:
         return await runJavaScript(code, tmpDir, input, timeout);
+      case Language.RUST:
+        return await runRust(code, tmpDir, input, timeout);
+      case Language.GO:
+        return await runGo(code, tmpDir, input, timeout);
+      case Language.RUBY:
+        return await runRuby(code, tmpDir, input, timeout);
       default:
         return {
           output: '',
@@ -1156,6 +1379,15 @@ export async function runProgrammers(
       break;
     case Language.JAVASCRIPT:
       wrappedCode = wrapJavaScript(code, parameterNames, input);
+      break;
+    case Language.RUST:
+      wrappedCode = wrapRust(code, parameterNames, input);
+      break;
+    case Language.GO:
+      wrappedCode = wrapGo(code, parameterNames, input);
+      break;
+    case Language.RUBY:
+      wrappedCode = wrapRuby(code, parameterNames, input);
       break;
     default:
       return {
@@ -1418,4 +1650,92 @@ async function runJavaScript(code: string, tmpDir: string, input: string, timeou
   fs.writeFileSync(filePath, code, 'utf-8');
 
   return executeProcess(node, [filePath], tmpDir, input, timeout);
+}
+
+async function runRust(code: string, tmpDir: string, input: string, timeout: number): Promise<RunResult> {
+  const rustc = detectRustc();
+  if (!rustc) {
+    return {
+      output: '',
+      error: 'rustc not found. Please install Rust via https://rustup.rs',
+      exitCode: -1,
+      timedOut: false,
+      executionTimeMs: 0,
+      peakMemoryKB: 0,
+    };
+  }
+
+  const srcPath = path.join(tmpDir, 'solution.rs');
+  // Unlike MinGW g++, rustc does not append .exe automatically on Windows
+  const outPath = path.join(tmpDir, isWindows ? 'solution.exe' : 'solution');
+  fs.writeFileSync(srcPath, code, 'utf-8');
+
+  const compileResult = await executeProcess(
+    rustc, ['-O', '--edition', '2021', '-o', outPath, srcPath], tmpDir, null, COMPILE_TIMEOUT,
+  );
+  if (compileResult.exitCode !== 0) {
+    return {
+      output: '',
+      error: compileResult.error || compileResult.output,
+      exitCode: compileResult.exitCode,
+      timedOut: compileResult.timedOut,
+      executionTimeMs: compileResult.executionTimeMs,
+      peakMemoryKB: compileResult.peakMemoryKB,
+    };
+  }
+
+  return executeProcess(outPath, [], tmpDir, input, timeout);
+}
+
+async function runGo(code: string, tmpDir: string, input: string, timeout: number): Promise<RunResult> {
+  const go = detectGo();
+  if (!go) {
+    return {
+      output: '',
+      error: 'Go not found. Please install Go via https://go.dev/dl',
+      exitCode: -1,
+      timedOut: false,
+      executionTimeMs: 0,
+      peakMemoryKB: 0,
+    };
+  }
+
+  const srcPath = path.join(tmpDir, 'solution.go');
+  const outPath = path.join(tmpDir, isWindows ? 'solution.exe' : 'solution');
+  fs.writeFileSync(srcPath, code, 'utf-8');
+
+  const compileResult = await executeProcess(
+    go, ['build', '-o', outPath, srcPath], tmpDir, null, COMPILE_TIMEOUT,
+  );
+  if (compileResult.exitCode !== 0) {
+    return {
+      output: '',
+      error: compileResult.error || compileResult.output,
+      exitCode: compileResult.exitCode,
+      timedOut: compileResult.timedOut,
+      executionTimeMs: compileResult.executionTimeMs,
+      peakMemoryKB: compileResult.peakMemoryKB,
+    };
+  }
+
+  return executeProcess(outPath, [], tmpDir, input, timeout);
+}
+
+async function runRuby(code: string, tmpDir: string, input: string, timeout: number): Promise<RunResult> {
+  const ruby = detectRuby();
+  if (!ruby) {
+    return {
+      output: '',
+      error: 'Ruby not found. Please install via https://www.ruby-lang.org (brew install ruby / rbenv / RubyInstaller)',
+      exitCode: -1,
+      timedOut: false,
+      executionTimeMs: 0,
+      peakMemoryKB: 0,
+    };
+  }
+
+  const filePath = path.join(tmpDir, 'solution.rb');
+  fs.writeFileSync(filePath, code, 'utf-8');
+
+  return executeProcess(ruby, [filePath], tmpDir, input, timeout);
 }

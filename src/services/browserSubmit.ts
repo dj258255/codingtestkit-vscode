@@ -15,6 +15,9 @@ const LEETCODE_LANG_SLUG: Record<Language, string> = {
   [Language.CPP]: 'cpp',
   [Language.KOTLIN]: 'kotlin',
   [Language.JAVASCRIPT]: 'javascript',
+  [Language.RUST]: 'rust',
+  [Language.GO]: 'golang',
+  [Language.RUBY]: 'ruby',
 };
 
 const CODEFORCES_LANG_VALUE: Record<Language, string> = {
@@ -23,6 +26,9 @@ const CODEFORCES_LANG_VALUE: Record<Language, string> = {
   [Language.CPP]: '89',        // GNU C++23 14.2 (64 bit)
   [Language.KOTLIN]: '88',     // Kotlin 2.0.21
   [Language.JAVASCRIPT]: '34', // JavaScript V8
+  [Language.RUST]: '75',       // Rust 2021
+  [Language.GO]: '32',         // Go
+  [Language.RUBY]: '67',       // Ruby 3
 };
 
 const PROGRAMMERS_LANG_SLUG: Record<Language, string> = {
@@ -31,6 +37,9 @@ const PROGRAMMERS_LANG_SLUG: Record<Language, string> = {
   [Language.CPP]: 'cpp',
   [Language.KOTLIN]: 'kotlin',
   [Language.JAVASCRIPT]: 'javascript',
+  [Language.RUST]: '', // Programmers does not grade Rust
+  [Language.GO]: 'go',
+  [Language.RUBY]: 'ruby',
 };
 
 // --- Cookie parsing ---

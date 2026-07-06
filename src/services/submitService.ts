@@ -12,6 +12,9 @@ const PROGRAMMERS_LANG_MAP: Record<Language, string> = {
   [Language.CPP]: 'cpp',
   [Language.KOTLIN]: 'kotlin',
   [Language.JAVASCRIPT]: 'javascript',
+  [Language.RUST]: '', // Programmers does not grade Rust
+  [Language.GO]: 'go',
+  [Language.RUBY]: 'ruby',
 };
 
 // --- Main entry point ---

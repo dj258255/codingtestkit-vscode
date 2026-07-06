@@ -738,6 +738,9 @@ label { font-size: 12px; display: flex; align-items: center; gap: var(--ctk-spac
       <option value="CPP">C++</option>
       <option value="KOTLIN">Kotlin</option>
       <option value="JAVASCRIPT">JavaScript</option>
+      <option value="RUST">Rust</option>
+      <option value="GO">Go</option>
+      <option value="RUBY">Ruby</option>
     </select>
     <button id="loginBtn" class="secondary"><span class="codicon codicon-log-in"></span> <span data-ko="로그인" data-en="Login">Login</span></button>
   </div>
@@ -790,6 +793,9 @@ label { font-size: 12px; display: flex; align-items: center; gap: var(--ctk-spac
       <option value="CPP">C++</option>
       <option value="KOTLIN">Kotlin</option>
       <option value="JAVASCRIPT">JavaScript</option>
+      <option value="RUST">Rust</option>
+      <option value="GO">Go</option>
+      <option value="RUBY">Ruby</option>
     </select>
   </div>
   <div class="row">
@@ -3514,7 +3520,7 @@ label { font-size: 12px; display: flex; align-items: center; gap: var(--ctk-spac
         if (msg.data.language) {
           $('#languageSelect').value = msg.data.language;
           state.language = msg.data.language;
-          var langMap = { JAVA: 'Java', PYTHON: 'Python', CPP: 'C++', KOTLIN: 'Kotlin', JAVASCRIPT: 'JavaScript' };
+          var langMap = { JAVA: 'Java', PYTHON: 'Python', CPP: 'C++', KOTLIN: 'Kotlin', JAVASCRIPT: 'JavaScript', RUST: 'Rust', GO: 'Go', RUBY: 'Ruby' };
           $('#testLangLabel').textContent = langMap[msg.data.language] || msg.data.language;
         }
         break;

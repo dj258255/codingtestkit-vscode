@@ -26,6 +26,12 @@ const LANG_SLUG_MAP: Record<string, string> = {
   kt: 'kotlin',
   javascript: 'javascript',
   js: 'javascript',
+  rust: 'rust',
+  rs: 'rust',
+  go: 'golang',
+  golang: 'golang',
+  ruby: 'ruby',
+  rb: 'ruby',
 };
 
 function clearCsrfToken(): void {

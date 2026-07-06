@@ -300,6 +300,7 @@ function getEmptyTemplate(language: Language, problem: Problem): string {
 function getCommentPrefix(language: Language): string {
   switch (language) {
     case Language.PYTHON:
+    case Language.RUBY:
       return '#';
     default:
       return '//';

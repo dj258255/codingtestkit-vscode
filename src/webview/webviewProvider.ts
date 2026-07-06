@@ -399,7 +399,7 @@ export class CodingTestKitViewProvider implements vscode.WebviewViewProvider {
     let url: string;
     switch (source) {
       case ProblemSource.PROGRAMMERS: {
-        const progLang = { JAVA: 'java', PYTHON: 'python3', CPP: 'cpp', KOTLIN: 'kotlin', JAVASCRIPT: 'javascript' }[this._currentLanguage] || '';
+        const progLang = { JAVA: 'java', PYTHON: 'python3', CPP: 'cpp', KOTLIN: 'kotlin', JAVASCRIPT: 'javascript', RUST: '', GO: 'go', RUBY: 'ruby' }[this._currentLanguage] || '';
         url = `https://school.programmers.co.kr/learn/courses/30/lessons/${this._currentProblem.id}${progLang ? '?language=' + progLang : ''}`;
         break;
       }
@@ -408,7 +408,7 @@ export class CodingTestKitViewProvider implements vscode.WebviewViewProvider {
         break;
       case ProblemSource.LEETCODE: {
         const slug = this._currentProblem.contestProbId || this._currentProblem.id;
-        const lcLang = { JAVA: 'java', PYTHON: 'python3', CPP: 'cpp', KOTLIN: 'kotlin', JAVASCRIPT: 'javascript' }[this._currentLanguage] || '';
+        const lcLang = { JAVA: 'java', PYTHON: 'python3', CPP: 'cpp', KOTLIN: 'kotlin', JAVASCRIPT: 'javascript', RUST: 'rust', GO: 'golang', RUBY: 'ruby' }[this._currentLanguage] || '';
         url = `https://leetcode.com/problems/${slug}/${lcLang ? '?lang=' + lcLang : ''}`;
         break;
       }

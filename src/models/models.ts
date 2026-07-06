@@ -78,6 +78,9 @@ export enum Language {
   CPP = 'CPP',
   KOTLIN = 'KOTLIN',
   JAVASCRIPT = 'JAVASCRIPT',
+  RUST = 'RUST',
+  GO = 'GO',
+  RUBY = 'RUBY',
 }
 
 export const LanguageInfo: Record<Language, {
@@ -90,6 +93,9 @@ export const LanguageInfo: Record<Language, {
   [Language.CPP]: { displayName: 'C++', extension: 'cpp', sweaId: 1 },
   [Language.KOTLIN]: { displayName: 'Kotlin', extension: 'kt', sweaId: -1 },
   [Language.JAVASCRIPT]: { displayName: 'JavaScript', extension: 'js', sweaId: -1 },
+  [Language.RUST]: { displayName: 'Rust', extension: 'rs', sweaId: -1 },
+  [Language.GO]: { displayName: 'Go', extension: 'go', sweaId: -1 },
+  [Language.RUBY]: { displayName: 'Ruby', extension: 'rb', sweaId: -1 },
 };
 
 export function getDefaultCode(lang: Language, source: ProblemSource): string {
@@ -124,6 +130,24 @@ export function getDefaultCode(lang: Language, source: ProblemSource): string {
       [ProblemSource.LEETCODE]: '',
       [ProblemSource.CODEFORCES]: `const readline = require('readline');\nconst rl = readline.createInterface({ input: process.stdin });\nconst lines = [];\nrl.on('line', (line) => lines.push(line));\nrl.on('close', () => {\n\n});`,
     },
+    [Language.RUST]: {
+      [ProblemSource.PROGRAMMERS]: `fn solution() -> i32 {\n    let answer = 0;\n    answer\n}`,
+      [ProblemSource.SWEA]: `use std::io::{self, BufRead};\n\nfn main() {\n    let stdin = io::stdin();\n    let mut lines = stdin.lock().lines();\n    let t: usize = lines.next().unwrap().unwrap().trim().parse().unwrap();\n    for tc in 1..=t {\n        println!("#{} ", tc);\n    }\n}`,
+      [ProblemSource.LEETCODE]: '',
+      [ProblemSource.CODEFORCES]: `use std::io::{self, Read};\n\nfn main() {\n    let mut input = String::new();\n    io::stdin().read_to_string(&mut input).unwrap();\n    let mut it = input.split_whitespace();\n\n}`,
+    },
+    [Language.GO]: {
+      [ProblemSource.PROGRAMMERS]: `func solution() int {\n    answer := 0\n    return answer\n}`,
+      [ProblemSource.SWEA]: `package main\n\nimport (\n    "bufio"\n    "fmt"\n    "os"\n)\n\nfunc main() {\n    reader := bufio.NewReader(os.Stdin)\n    var T int\n    fmt.Fscan(reader, &T)\n    for tc := 1; tc <= T; tc++ {\n        fmt.Printf("#%d \\n", tc)\n    }\n}`,
+      [ProblemSource.LEETCODE]: '',
+      [ProblemSource.CODEFORCES]: `package main\n\nimport (\n    "bufio"\n    "fmt"\n    "os"\n)\n\nfunc main() {\n    reader := bufio.NewReader(os.Stdin)\n    writer := bufio.NewWriter(os.Stdout)\n    defer writer.Flush()\n\n    var n int\n    fmt.Fscan(reader, &n)\n    fmt.Fprintln(writer, n)\n}`,
+    },
+    [Language.RUBY]: {
+      [ProblemSource.PROGRAMMERS]: `def solution()\n    answer = 0\n    answer\nend`,
+      [ProblemSource.SWEA]: `T = gets.to_i\n(1..T).each do |tc|\n    puts "##{tc} "\nend`,
+      [ProblemSource.LEETCODE]: '',
+      [ProblemSource.CODEFORCES]: `lines = STDIN.read.split("\\n")\n`,
+    },
   };
   return templates[lang]?.[source] ?? '';
 }
@@ -135,6 +159,9 @@ export function languageFromExtension(ext: string): Language | null {
     cpp: Language.CPP,
     kt: Language.KOTLIN,
     js: Language.JAVASCRIPT,
+    rs: Language.RUST,
+    go: Language.GO,
+    rb: Language.RUBY,
   };
   return map[ext] ?? null;
 }
