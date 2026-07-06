@@ -285,6 +285,15 @@ body.vscode-high-contrast #problemContent img.tex-formula,
 body.vscode-high-contrast #problemContent img.tex-graphics {
   filter: invert(0.92) hue-rotate(180deg);
 }
+/* Every other platform's images (LeetCode diagrams etc.) can also be
+   transparent with dark strokes. Backing them with white on dark themes
+   keeps them readable without inverting colors — white-background images
+   look identical to before. */
+body.vscode-dark #problemContent img:not(.tex-formula):not(.tex-graphics),
+body.vscode-high-contrast #problemContent img:not(.tex-formula):not(.tex-graphics) {
+  background: #fff;
+  padding: 4px;
+}
 #problemContent pre {
   background: var(--vscode-textCodeBlock-background, #2d2d2d);
   padding: var(--ctk-space-md); border-radius: var(--ctk-radius-md); overflow-x: auto;
