@@ -1,5 +1,8 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
+import * as fs from 'fs';
+import * as vm from 'vm';
+import { execFile } from 'child_process';
 import { getWebviewContent } from './mainWebview';
 import { Problem, ProblemSource, Language, LanguageInfo, TestCase, languageFromExtension } from '../models/models';
 import { t, setLanguage, getLang } from '../services/i18n';
@@ -14,7 +17,8 @@ import { submitCode } from '../services/submitService';
 import { browserSubmit } from '../services/browserSubmit';
 import { getCookies, setCookies, getUsername, setUsername, logout, isLoggedIn, getLoginUrl, fetchUsername, isDirectLoginSupported, directLogin, browserLogin } from '../services/authService';
 import { getToken, setToken, getRepoFullName, setRepoFullName, getAutoPushEnabled, setAutoPushEnabled, validateToken, listRepos, pushSolution } from '../services/githubService';
-import { getTemplates, saveTemplate, deleteTemplate } from '../services/templateService';
+import { getTemplates, saveTemplate, deleteTemplate, getDefaultTemplateMap, setDefaultTemplate } from '../services/templateService';
+import { getProblemPanelHtml } from './problemPanel';
 import { createProblemFiles, loadProblemFromFolder, findProblemFolder } from '../services/problemFileManager';
 import { translate, detectLanguage } from '../services/translateService';
 import { fetchSolvedProblems, isSupported as isSolvedSupported } from '../services/solvedProblemsService';
@@ -29,6 +33,7 @@ export class CodingTestKitViewProvider implements vscode.WebviewViewProvider {
   private _translatedHtml?: string;
   private _originalHtml?: string;
   private _isTranslated = false;
+  private _problemPanel?: vscode.WebviewPanel;
 
   public onStatusUpdate?: (data: { platform?: string; problemId?: string; title?: string }) => void;
   public onTimerUpdate?: (data: { timers: Array<{ mode: string; running: boolean; text: string }> }) => void;
@@ -86,6 +91,7 @@ export class CodingTestKitViewProvider implements vscode.WebviewViewProvider {
           problem: { ...problem, description: problem.description },
           source: problem.source,
         });
+        this._updateProblemPanel();
         // Detect language from file extension
         const ext = path.extname(filePath).slice(1);
         const lang = languageFromExtension(ext);
@@ -120,6 +126,15 @@ export class CodingTestKitViewProvider implements vscode.WebviewViewProvider {
         case 'runTests':
           await this._runTests(data);
           break;
+        case 'runSingleTest':
+          await this._runSingleTest(data);
+          break;
+        case 'debugTest':
+          await this._debugTest(data);
+          break;
+        case 'saveValidator':
+          this._saveValidator(data);
+          break;
         case 'submitCode':
           await this._submitCode(data);
           break;
@@ -145,10 +160,16 @@ export class CodingTestKitViewProvider implements vscode.WebviewViewProvider {
           this._saveTemplate(data);
           break;
         case 'loadTemplate':
-          this._loadTemplate(data);
+          await this._loadTemplate(data);
           break;
         case 'deleteTemplate':
           this._deleteTemplate(data);
+          break;
+        case 'setDefaultTemplate':
+          this._setDefaultTemplate(data);
+          break;
+        case 'openProblemPanel':
+          this.openProblemPanel();
           break;
         case 'pushToGitHub':
           await this._pushToGitHub();
@@ -226,8 +247,7 @@ export class CodingTestKitViewProvider implements vscode.WebviewViewProvider {
     }
 
     // Send initial state
-    const templates = getTemplates();
-    this.sendCommand('templateList', templates);
+    this._sendTemplateList();
 
     // Check login status for all platforms
     for (const source of Object.values(ProblemSource)) {
@@ -295,6 +315,7 @@ export class CodingTestKitViewProvider implements vscode.WebviewViewProvider {
     }
 
     this.sendCommand('problemFetched', { problem, source });
+    this._updateProblemPanel();
     this.onStatusUpdate?.({ platform: source, problemId: problem.id, title: problem.title });
     this.sendCommand('info', {
       message: t(
@@ -304,70 +325,279 @@ export class CodingTestKitViewProvider implements vscode.WebviewViewProvider {
     });
   }
 
-  private async _runTests(data: { testCases: TestCase[] }): Promise<void> {
+  // Gathers everything a test run needs from the current editor/problem, or
+  // reports the reason it can't run and returns null.
+  private _getRunContext(): { code: string; lang: Language; paramNames: string[]; isFunctionMode: boolean; validator?: string } | null {
     if (!this._currentProblem) {
       this.sendCommand('error', { message: t('먼저 문제를 가져와주세요.', 'Please fetch a problem first.') });
-      return;
+      return null;
     }
-
     const editor = vscode.window.activeTextEditor;
     if (!editor) {
       this.sendCommand('error', { message: t('코드 파일을 열어주세요.', 'Please open a code file.') });
-      return;
+      return null;
     }
-
     const code = editor.document.getText();
     const ext = path.extname(editor.document.uri.fsPath).slice(1);
     const lang = languageFromExtension(ext) || this._currentLanguage;
-    const testCases = data.testCases || this._testCases;
     const source = this._currentProblem.source;
-    const paramNames = this._currentProblem.parameterNames;
-    const isFunctionMode = source === ProblemSource.PROGRAMMERS || source === ProblemSource.LEETCODE;
+    return {
+      code,
+      lang,
+      paramNames: this._currentProblem.parameterNames,
+      isFunctionMode: source === ProblemSource.PROGRAMMERS || source === ProblemSource.LEETCODE,
+    };
+  }
 
-    let passCount = 0;
-    for (let i = 0; i < testCases.length; i++) {
-      const tc = testCases[i];
-      this.sendCommand('testResult', { index: i, status: 'running' });
-      try {
-        const result = isFunctionMode
-          ? await runProgrammers(code, lang, tc.input, paramNames)
-          : await runCode(code, lang, tc.input);
+  // Runs one test case and reports its result to the webview. An empty
+  // expected output marks the case as "neutral": the code still runs (to
+  // check runtime, errors and time limits — e.g. generated stress inputs)
+  // but no pass/fail verdict is given (passed: null).
+  private async _runOneCase(
+    ctx: { code: string; lang: Language; paramNames: string[]; isFunctionMode: boolean; validator?: string },
+    tc: TestCase,
+    index: number,
+  ): Promise<{ comparable: boolean; passed: boolean }> {
+    this.sendCommand('testResult', { index, status: 'running' });
+    try {
+      const result = ctx.isFunctionMode
+        ? await runProgrammers(ctx.code, ctx.lang, tc.input, ctx.paramNames)
+        : await runCode(ctx.code, ctx.lang, tc.input);
 
-        const actual = result.output.trim();
-        const expected = tc.expectedOutput.trim();
+      const actual = result.output.trim();
+      const expected = tc.expectedOutput.trim();
+      const validator = ctx.validator?.trim();
+
+      let comparable: boolean;
+      let passed: boolean;
+      let validatorError = '';
+      if (validator) {
+        // Special judge (#36): problems with multiple valid answers judge via
+        // the user's validator instead of output comparison — an expected
+        // output is not required.
+        comparable = true;
+        try {
+          passed = this._runValidator(validator, tc.input, expected, actual);
+        } catch (err: any) {
+          passed = false;
+          validatorError = `Validator error: ${err.message || String(err)}`;
+        }
+      } else {
+        comparable = expected.length > 0;
         // Normalize comparison
         const normalizeOutput = (s: string) =>
           s.split('\n').map((l) => l.trimEnd()).join('\n')
             .replace(/\[\s*/g, '[').replace(/\s*\]/g, ']').replace(/,\s+/g, ',');
-        const passed = normalizeOutput(actual) === normalizeOutput(expected);
-        if (passed) { passCount++; }
+        passed = comparable && normalizeOutput(actual) === normalizeOutput(expected);
+      }
 
-        this.sendCommand('testResult', {
-          index: i,
-          status: result.timedOut ? 'timeout' : passed ? 'pass' : 'fail',
-          actualOutput: actual,
-          error: result.error,
-          timeMs: result.executionTimeMs,
-          memoryKB: result.peakMemoryKB,
-          passed,
-        });
-      } catch (err: any) {
-        this.sendCommand('testResult', {
-          index: i,
-          status: 'error',
-          actualOutput: '',
-          error: err.message || String(err),
-          timeMs: 0,
-          memoryKB: 0,
-          passed: false,
-        });
+      this.sendCommand('testResult', {
+        index,
+        status: result.timedOut ? 'timeout' : !comparable ? 'done' : passed ? 'pass' : 'fail',
+        actualOutput: actual,
+        error: [result.error, validatorError].filter(Boolean).join('\n'),
+        timeMs: result.executionTimeMs,
+        memoryKB: result.peakMemoryKB,
+        passed: comparable ? passed : null,
+      });
+      return { comparable, passed };
+    } catch (err: any) {
+      this.sendCommand('testResult', {
+        index,
+        status: 'error',
+        actualOutput: '',
+        error: err.message || String(err),
+        timeMs: 0,
+        memoryKB: 0,
+        passed: false,
+      });
+      return { comparable: true, passed: false };
+    }
+  }
+
+  private async _runTests(data: { testCases: TestCase[]; validator?: string }): Promise<void> {
+    const ctx = this._getRunContext();
+    if (!ctx) {
+      this.sendCommand('testComplete', { passCount: 0, totalCount: 0, message: '' });
+      return;
+    }
+    ctx.validator = data.validator ?? this._currentProblem?.validator;
+    const testCases = data.testCases || this._testCases;
+
+    let passCount = 0;
+    let comparableCount = 0;
+    for (let i = 0; i < testCases.length; i++) {
+      const outcome = await this._runOneCase(ctx, testCases[i], i);
+      if (outcome.comparable) {
+        comparableCount++;
+        if (outcome.passed) { passCount++; }
       }
     }
 
     this.sendCommand('testComplete', {
       passCount,
-      totalCount: testCases.length,
-      message: `${passCount}/${testCases.length} ${t('통과', 'passed')}`,
+      totalCount: comparableCount,
+      message: `${passCount}/${comparableCount} ${t('통과', 'passed')}`,
+    });
+  }
+
+  private async _runSingleTest(data: { index: number; testCase: TestCase; validator?: string }): Promise<void> {
+    const ctx = this._getRunContext();
+    if (!ctx) {
+      this.sendCommand('singleTestComplete', { index: data.index });
+      return;
+    }
+    ctx.validator = data.validator ?? this._currentProblem?.validator;
+    await this._runOneCase(ctx, data.testCase, data.index);
+    this.sendCommand('singleTestComplete', { index: data.index });
+  }
+
+  // #36: launches the current solution under the IDE debugger with a test
+  // case's input. Python/JS get stdin wired automatically through a small
+  // wrapper; C++ recompiles with -g and redirects; JVM/Go read the input
+  // pasted into the integrated terminal (it is placed on the clipboard).
+  private async _debugTest(data: { testCase: TestCase }): Promise<void> {
+    const editor = vscode.window.activeTextEditor;
+    if (!editor) {
+      this.sendCommand('error', { message: t('코드 파일을 열어주세요.', 'Please open a code file.') });
+      return;
+    }
+    const filePath = editor.document.uri.fsPath;
+    const folder = path.dirname(filePath);
+    const ext = path.extname(filePath).slice(1);
+    const lang = languageFromExtension(ext) || this._currentLanguage;
+
+    const input = data.testCase?.input ?? '';
+    try { fs.writeFileSync(path.join(folder, 'input.txt'), input, 'utf-8'); } catch { /* clipboard still works */ }
+    await vscode.env.clipboard.writeText(input);
+
+    let config: vscode.DebugConfiguration;
+    let manualStdin = false;
+    switch (lang) {
+      case Language.PYTHON: {
+        const wrapper = path.join(folder, '.ctk_debug.py');
+        fs.writeFileSync(wrapper, [
+          'import sys, runpy',
+          "sys.stdin = open('input.txt', encoding='utf-8')",
+          `runpy.run_path(${JSON.stringify(path.basename(filePath))}, run_name='__main__')`,
+          '',
+        ].join('\n'), 'utf-8');
+        config = { type: 'debugpy', name: 'CodingTestKit Debug', request: 'launch', program: wrapper, cwd: folder, console: 'integratedTerminal', justMyCode: false };
+        break;
+      }
+      case Language.JAVASCRIPT: {
+        const wrapper = path.join(folder, '.ctk_debug.js');
+        fs.writeFileSync(wrapper, [
+          "const fs = require('fs');",
+          "const path = require('path');",
+          "const { Readable } = require('stream');",
+          "const data = fs.readFileSync(path.join(__dirname, 'input.txt'));",
+          'const stdin = new Readable();',
+          'stdin.push(data);',
+          'stdin.push(null);',
+          "Object.defineProperty(process, 'stdin', { value: stdin, configurable: true });",
+          `require(path.join(__dirname, ${JSON.stringify(path.basename(filePath))}));`,
+          '',
+        ].join('\n'), 'utf-8');
+        config = { type: 'node', name: 'CodingTestKit Debug', request: 'launch', program: wrapper, cwd: folder, console: 'integratedTerminal' };
+        break;
+      }
+      case Language.CPP: {
+        const gpp = getDetectedPaths().gpp;
+        if (!gpp) {
+          this.sendCommand('error', { message: t('g++를 찾을 수 없습니다.', 'g++ not found.') });
+          return;
+        }
+        const outPath = path.join(folder, process.platform === 'win32' ? '.ctk_debug.exe' : '.ctk_debug');
+        const compileErr = await new Promise<string>((resolve) => {
+          execFile(gpp, ['-std=c++17', '-g', '-O0', '-o', outPath, filePath], { cwd: folder }, (err, _stdout, stderr) => {
+            resolve(err ? (stderr || String(err)) : '');
+          });
+        });
+        if (compileErr) {
+          this.sendCommand('error', { message: compileErr });
+          return;
+        }
+        // CodeLLDB redirects stdin natively; cpptools needs the shell trick
+        const hasCodeLLDB = !!vscode.extensions.getExtension('vadimcn.vscode-lldb');
+        config = hasCodeLLDB
+          ? { type: 'lldb', name: 'CodingTestKit Debug', request: 'launch', program: outPath, cwd: folder, stdio: ['input.txt', null, null] }
+          : { type: 'cppdbg', name: 'CodingTestKit Debug', request: 'launch', program: outPath, cwd: folder, args: ['<', 'input.txt'], MIMode: process.platform === 'darwin' ? 'lldb' : 'gdb', externalConsole: false };
+        break;
+      }
+      case Language.JAVA:
+        config = { type: 'java', name: 'CodingTestKit Debug', request: 'launch', mainClass: filePath, cwd: folder, console: 'integratedTerminal' };
+        manualStdin = true;
+        break;
+      case Language.GO:
+        config = { type: 'go', name: 'CodingTestKit Debug', request: 'launch', mode: 'debug', program: filePath, cwd: folder, console: 'integratedTerminal' };
+        manualStdin = true;
+        break;
+      default:
+        this.sendCommand('error', {
+          message: t(
+            `${lang} 디버그 실행은 아직 지원하지 않습니다. 입력을 클립보드에 복사해두었으니 직접 디버깅할 때 붙여넣어 사용하세요.`,
+            `Debugging is not supported for ${lang} yet. The input is on your clipboard for manual debugging.`,
+          ),
+        });
+        return;
+    }
+
+    const wsFolder = vscode.workspace.workspaceFolders?.[0];
+    const started = await Promise.resolve(vscode.debug.startDebugging(wsFolder, config)).then((r) => r, () => false);
+    if (!started) {
+      this.sendCommand('error', {
+        message: t(
+          '디버거를 시작하지 못했습니다. 해당 언어의 디버거 확장이 설치되어 있는지 확인하세요.',
+          'Could not start the debugger. Make sure the debugger extension for this language is installed.',
+        ),
+      });
+      return;
+    }
+    this.sendCommand('info', {
+      message: manualStdin
+        ? t('디버그 시작 — 입력이 클립보드에 있습니다. 터미널에 붙여넣으세요.', 'Debug started — the input is on your clipboard; paste it into the terminal.')
+        : t('디버그 시작 — 입력은 input.txt로 연결되었습니다.', 'Debug started — input wired from input.txt.'),
+    });
+  }
+
+  // Runs the special-judge validator via Node's vm module. NOT a security
+  // sandbox (vm contexts are escapable by design) and not meant as one: the
+  // validator is user-authored code from the local workspace — the same
+  // trust level as the solution code this extension already compiles and
+  // executes. Untrusted workspaces are gated by VS Code's Workspace Trust.
+  // The timeout only guards against accidental infinite loops.
+  private _runValidator(code: string, input: string, expected: string, actual: string): boolean {
+    const sandbox = { input, expected, actual };
+    const script = `(function(input, expected, actual) {\n${code}\n})(input, expected, actual)`;
+    return !!vm.runInNewContext(script, sandbox, { timeout: 2000 });
+  }
+
+  // Persists the special-judge validator into the problem's problem.json so
+  // it survives across sessions and re-opens with the problem.
+  private _saveValidator(data: { validator: string }): void {
+    if (!this._currentProblem) {
+      this.sendCommand('error', { message: t('먼저 문제를 가져와주세요.', 'Please fetch a problem first.') });
+      return;
+    }
+    this._currentProblem.validator = data.validator;
+
+    const editor = vscode.window.activeTextEditor;
+    const problemFolder = editor ? findProblemFolder(editor.document.uri.fsPath) : null;
+    if (problemFolder) {
+      try {
+        const jsonPath = path.join(problemFolder, 'problem.json');
+        const parsed = JSON.parse(fs.readFileSync(jsonPath, 'utf-8'));
+        parsed.validator = data.validator;
+        fs.writeFileSync(jsonPath, JSON.stringify(parsed, null, 2), 'utf-8');
+        this.sendCommand('info', { message: t('✓ 검증기가 저장되었습니다.', '✓ Validator saved.') });
+        return;
+      } catch {
+        // problem.json unreadable — fall through to the in-memory note
+      }
+    }
+    this.sendCommand('info', {
+      message: t('검증기가 이 세션에만 적용됩니다 (problem.json 없음).', 'Validator applies to this session only (no problem.json).'),
     });
   }
 
@@ -811,12 +1041,45 @@ export class CodingTestKitViewProvider implements vscode.WebviewViewProvider {
     this.sendCommand('mySolvedResults', { source, ...results });
   }
 
+  // Opens (or reveals) the current problem statement in a full-size editor
+  // tab — the sidebar is too narrow for long statements (#33).
+  public openProblemPanel(): void {
+    if (!this._currentProblem) {
+      this.sendCommand('error', { message: t('먼저 문제를 가져와주세요.', 'Please fetch a problem first.') });
+      return;
+    }
+    if (this._problemPanel) {
+      this._problemPanel.reveal();
+    } else {
+      this._problemPanel = vscode.window.createWebviewPanel(
+        'codingtestkit.problemPanel',
+        this._currentProblem.title,
+        vscode.ViewColumn.Active,
+        { enableScripts: false, retainContextWhenHidden: true },
+      );
+      this._problemPanel.onDidDispose(() => { this._problemPanel = undefined; });
+    }
+    this._updateProblemPanel();
+  }
+
+  // Keeps the maximized panel in sync when a new problem is fetched or the
+  // statement is translated. No-op while the panel is closed.
+  private _updateProblemPanel(): void {
+    if (!this._problemPanel || !this._currentProblem) { return; }
+    const description = this._isTranslated && this._translatedHtml
+      ? this._translatedHtml
+      : this._currentProblem.description;
+    this._problemPanel.title = this._currentProblem.title;
+    this._problemPanel.webview.html = getProblemPanelHtml(this._currentProblem, description, getLang() === 'KO');
+  }
+
   private async _translate(): Promise<void> {
     if (!this._currentProblem) { return; }
 
     if (this._isTranslated && this._originalHtml) {
       this._isTranslated = false;
       this.sendCommand('translated', { description: this._originalHtml, isTranslated: false });
+      this._updateProblemPanel();
       return;
     }
 
@@ -828,6 +1091,7 @@ export class CodingTestKitViewProvider implements vscode.WebviewViewProvider {
     this._translatedHtml = translated;
     this._isTranslated = true;
     this.sendCommand('translated', { description: translated, isTranslated: true });
+    this._updateProblemPanel();
   }
 
   private _saveTemplate(data: { name: string; language: string; code?: string; fromPreview?: boolean }): void {
@@ -847,31 +1111,64 @@ export class CodingTestKitViewProvider implements vscode.WebviewViewProvider {
       code,
       inputTemplate: '',
     });
-    this.sendCommand('templateList', getTemplates());
+    this._sendTemplateList();
     this.sendCommand('info', { message: t('✓ 템플릿이 저장되었습니다.', '✓ Template saved.') });
   }
 
-  private _loadTemplate(data: { name: string }): void {
+  private async _loadTemplate(data: { name: string }): Promise<void> {
     const templates = getTemplates();
     const tmpl = templates.find((t) => t.name === data.name);
-    if (tmpl) {
-      this.sendCommand('templateLoaded', tmpl);
-      // Write to editor
-      const editor = vscode.window.activeTextEditor;
-      if (editor) {
-        editor.edit((editBuilder) => {
-          const doc = editor.document;
-          const fullRange = new vscode.Range(doc.positionAt(0), doc.positionAt(doc.getText().length));
-          editBuilder.replace(fullRange, tmpl.code);
-        });
-      }
+    if (!tmpl) { return; }
+    this.sendCommand('templateLoaded', tmpl);
+
+    const editor = vscode.window.activeTextEditor;
+    if (!editor) { return; }
+
+    // Replacing an in-progress solution without warning loses work (#35) —
+    // when the file has content, confirm and offer insert-at-cursor instead.
+    let insertAtCursor = false;
+    if (editor.document.getText().trim().length > 0) {
+      const replaceLabel = t('전체 교체', 'Replace All');
+      const insertLabel = t('커서에 삽입', 'Insert at Cursor');
+      const choice = await vscode.window.showWarningMessage(
+        t(
+          '현재 파일에 코드가 있습니다. 템플릿을 어떻게 적용할까요?',
+          'The current file is not empty. How should the template be applied?',
+        ),
+        { modal: true },
+        replaceLabel,
+        insertLabel,
+      );
+      if (!choice) { return; }
+      insertAtCursor = choice === insertLabel;
     }
+
+    await editor.edit((editBuilder) => {
+      if (insertAtCursor) {
+        editBuilder.insert(editor.selection.active, tmpl.code);
+      } else {
+        const doc = editor.document;
+        const fullRange = new vscode.Range(doc.positionAt(0), doc.positionAt(doc.getText().length));
+        editBuilder.replace(fullRange, tmpl.code);
+      }
+    });
   }
 
   private _deleteTemplate(data: { name: string }): void {
     deleteTemplate(data.name);
-    this.sendCommand('templateList', getTemplates());
+    this._sendTemplateList();
     this.sendCommand('info', { message: t('✓ 템플릿이 삭제되었습니다.', '✓ Template deleted.') });
+  }
+
+  private _sendTemplateList(): void {
+    this.sendCommand('templateList', { templates: getTemplates(), defaults: getDefaultTemplateMap() });
+  }
+
+  // Marks (or clears, when name is empty) a template as the seed for new
+  // solution files of a platform+language combination (#35).
+  private _setDefaultTemplate(data: { source: string; language: string; name: string }): void {
+    setDefaultTemplate(data.source, data.language, data.name || null);
+    this._sendTemplateList();
   }
 
   private async _pushToGitHub(): Promise<void> {

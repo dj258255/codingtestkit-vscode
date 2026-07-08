@@ -4,7 +4,8 @@ import { initI18n } from './services/i18n';
 import { initAuthService } from './services/authService';
 import { initGitHubService } from './services/githubService';
 import { initTemplateService } from './services/templateService';
-import { setToolPathOverrides } from './services/codeRunner';
+import { initBrowserFetch } from './services/browserFetch';
+import { setToolPathOverrides, setBuildOutputHandler } from './services/codeRunner';
 
 function applyToolPathOverrides(): void {
   const cfg = vscode.workspace.getConfiguration('codingtestkit.toolPath');
@@ -32,6 +33,17 @@ export function activate(context: vscode.ExtensionContext) {
   initAuthService(context);
   initGitHubService(context);
   initTemplateService(context);
+  initBrowserFetch(context);
+
+  // Compiler warnings and build messages go to their own output channel
+  // instead of the per-test results (#32)
+  const buildChannel = vscode.window.createOutputChannel('CodingTestKit Build');
+  context.subscriptions.push(buildChannel);
+  setBuildOutputHandler((label, text) => {
+    buildChannel.appendLine(`[${new Date().toLocaleTimeString()}] ${label}`);
+    buildChannel.appendLine(text);
+    buildChannel.appendLine('');
+  });
 
   // ── Status bar items ──
   statusBarPlatform = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 100);
@@ -133,6 +145,9 @@ export function activate(context: vscode.ExtensionContext) {
     vscode.commands.registerCommand('codingtestkit.openTimer', async () => {
       await vscode.commands.executeCommand('codingtestkit.mainView.focus');
       provider.sendCommand('showTimerTab');
+    }),
+    vscode.commands.registerCommand('codingtestkit.maximizeProblem', () => {
+      provider.openProblemPanel();
     })
   );
 

@@ -10,6 +10,7 @@ import {
   getDefaultCode,
 } from '../models/models';
 import { t } from './i18n';
+import { getDefaultTemplateFor } from './templateService';
 import { htmlToMarkdown } from './htmlToMarkdown';
 import { stripMathJaxArtifacts } from './codeforcesCrawler';
 
@@ -58,8 +59,21 @@ export async function createProblemFiles(
 
   // Only create the code file if it doesn't already exist
   if (!fs.existsSync(codeFilePath)) {
-    // Use initialCode from problem (e.g., LeetCode snippets) or default template
-    let codeContent = problem.initialCode || getDefaultCode(language, problem.source);
+    // Priority: user-designated default template for this platform+language
+    // > initialCode from problem (e.g., LeetCode snippets) > built-in template
+    const userTemplate = getDefaultTemplateFor(problem.source, language);
+    let codeContent: string;
+    if (userTemplate?.code) {
+      codeContent = userTemplate.code;
+      // LeetCode (and Programmers) require their Solution skeleton to stay
+      // submittable. When the user's template is helpers-only (no Solution of
+      // its own), append the platform-provided skeleton below it.
+      if (problem.initialCode && !/\bSolution\b/i.test(userTemplate.code)) {
+        codeContent = `${userTemplate.code.trimEnd()}\n\n${problem.initialCode}`;
+      }
+    } else {
+      codeContent = problem.initialCode || getDefaultCode(language, problem.source);
+    }
 
     // If still empty, add a simple comment
     if (!codeContent) {
@@ -113,6 +127,7 @@ export function loadProblemFromFolder(folderPath: string): Problem | null {
       parameterNames: Array.isArray(data.parameterNames) ? data.parameterNames : [],
       initialCode: String(data.initialCode ?? ''),
       contestProbId: String(data.contestProbId ?? ''),
+      validator: String(data.validator ?? ''),
     };
   } catch {
     return null;

@@ -1,5 +1,28 @@
 # Changelog
 
+## [1.4.0] - 2026-07-09
+
+### Added
+
+- **Run a Single Test Case**: Each test card now has its own run button (▶), so debugging one failing input no longer requires re-running the whole suite.
+- **Debug a Test Case**: A debug button (🐞) per test card launches the current solution under the IDE debugger with that case's input. Python and JavaScript get stdin wired automatically through a small wrapper; C++ recompiles with `-g` and redirects `input.txt` (CodeLLDB natively, cpptools via shell redirection); Java and Go start in the integrated terminal with the input placed on the clipboard for pasting.
+- **Optional Expected Output (Neutral Runs)**: A test case with an empty expected output now runs in neutral mode — it executes and reports runtime, memory, and errors, but shows a "RAN" badge instead of a PASS/FAIL verdict. Useful for stress inputs whose correct answer is unknown.
+- **Test Case Generator**: The Test tab gains a generator for large stress inputs — random / increasing / decreasing / constant arrays and shuffled permutations up to N = 1,000,000, with optional "N on first line" and space/newline separators. Adversarial patterns are included: Java `hashCode` collision strings (`Aa`/`BB` blocks), `unordered_map` bucket-collision prime multiples, sawtooth ramps, and few-unique-values sort killers. Generated cases have no expected output and run in neutral mode.
+- **Special Judge (Custom Validator)**: For problems with multiple valid answers, a JS validator (receiving `input`, `expected`, `actual`; truthy return passes) replaces output comparison. It runs sandboxed in the extension host with a 2s timeout and is saved into the problem's `problem.json`, restoring automatically when the problem reopens.
+- **Platform Default Templates**: A saved template can be designated as the default for any platform + its language from the Template tab. New solution files then start from that template instead of the built-in boilerplate (priority: user template → platform initial code → built-in). Templates without a `Solution` class keep LeetCode/Programmers' required skeleton appended below, so submissions stay compatible.
+- **Problem View Maximize**: A maximize button on the Problem tab hides the tab bar and toolbars so the statement fills the whole plugin window; a floating toolbar restores the layout or opens the statement in a full editor tab (also via the new `CodingTestKit: Maximize Problem View` command). The editor-tab view follows theme, mirrors the dark-theme image handling, and stays in sync with fetches and translation toggles.
+- **Build Output Channel**: Compiler warnings and build messages for all compiled languages (Java, C++, Kotlin, Rust, Go) now go to a dedicated "CodingTestKit Build" output channel instead of being dropped or mixed into test results — consecutive duplicate reports from per-case recompiles are collapsed. Compile errors still surface in the failing test case as before.
+
+### Improved
+
+- **Faster Codeforces Fetch**: Cloudflare clearance cookies (`cf_clearance`) and the User-Agent that earned them are saved after a successful browser fallback and replayed on later requests, so subsequent fetches go straight over HTTP without launching a browser. Expired cookies transparently fall back to the browser path and refresh themselves.
+- **Template Load Safety**: Loading a template into a non-empty file now asks before overwriting and offers "Insert at Cursor" as an alternative, so an in-progress solution can't be silently replaced.
+
+### Fixed
+
+- **Test Results Never Rendered Output/Metrics**: The webview read different field names than the extension sent (`output` vs `actualOutput`, `executionTimeMs` vs `timeMs`, `peakMemoryKB` vs `memoryKB`), so actual output, execution time, and memory were always blank. All three now display, and the failure diff view works against real output.
+- **Run All Button Stuck Disabled**: When a run could not start (no problem loaded, no code file open), the Run All button stayed disabled forever; it now re-enables.
+
 ## [1.3.1] - 2026-07-07
 
 ### Fixed

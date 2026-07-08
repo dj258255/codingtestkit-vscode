@@ -10,6 +10,9 @@ export interface Problem {
   parameterNames: string[];
   initialCode: string;
   contestProbId: string;
+  // Special judge (#36): JS function body receiving (input, expected, actual);
+  // a truthy return passes. Empty/absent → normal output comparison.
+  validator?: string;
 }
 
 export interface TestCase {

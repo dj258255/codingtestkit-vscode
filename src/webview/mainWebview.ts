@@ -253,6 +253,7 @@ label { font-size: 12px; display: flex; align-items: center; gap: var(--ctk-spac
 }
 .badge-pass { background: rgba(46,160,67,0.15); color: #3fb950; border: 1px solid rgba(46,160,67,0.3); }
 .badge-fail { background: rgba(218,54,51,0.15); color: #f85149; border: 1px solid rgba(218,54,51,0.3); }
+.badge-neutral { background: rgba(210,153,34,0.15); color: #d29922; border: 1px solid rgba(210,153,34,0.3); }
 .info-bar {
   background: var(--ctk-glass-bg);
   border-left: 3px solid var(--ctk-accent);
@@ -313,6 +314,17 @@ body.vscode-high-contrast #problemContent img:not(.tex-formula):not(.tex-graphic
   background: var(--ctk-glass-bg);
 }
 
+/* ===== PROBLEM FOCUS (MAXIMIZE) MODE (#33) =====
+   Hides the tab bar and toolbar rows so the statement fills the whole
+   plugin window; a floating toolbar restores the normal layout. */
+body.ctk-focus .tab-bar,
+body.ctk-focus #tabProblem > .row { display: none; }
+body.ctk-focus #problemContent { max-height: calc(100vh - 40px); }
+#focusToolbar {
+  display: none; position: fixed; top: 6px; right: 10px; z-index: 60; gap: 4px;
+}
+body.ctk-focus #focusToolbar { display: flex; }
+
 /* ===== TEST TAB ===== */
 .test-card {
   border: 1px solid var(--ctk-glass-border);
@@ -324,6 +336,7 @@ body.vscode-high-contrast #problemContent img:not(.tex-formula):not(.tex-graphic
 .test-card:hover { border-color: rgba(255,255,255,0.12); }
 .test-card.pass { border-left: 3px solid var(--ctk-success); }
 .test-card.fail { border-left: 3px solid var(--ctk-danger); }
+.test-card.neutral { border-left: 3px solid var(--ctk-warning); }
 .test-card-header {
   display: flex; align-items: center; gap: 8px;
   padding: 10px var(--ctk-space-md); cursor: pointer;
@@ -345,6 +358,28 @@ body.vscode-high-contrast #problemContent img:not(.tex-formula):not(.tex-graphic
   transition: all var(--ctk-duration) var(--ctk-ease);
 }
 .test-card-delete:hover { color: var(--ctk-danger); background: rgba(218,54,51,0.1); }
+.test-card-run {
+  background: none; border: none; color: var(--vscode-descriptionForeground, #666); cursor: pointer;
+  font-size: 12px; padding: 2px 6px; border-radius: var(--ctk-radius-sm);
+  transition: all var(--ctk-duration) var(--ctk-ease);
+}
+.test-card-run:hover { color: var(--ctk-success); background: rgba(46,160,67,0.1); }
+.test-card-run:disabled { opacity: 0.4; cursor: default; }
+#generatorPanel, #spjPanel {
+  border: 1px solid var(--ctk-glass-border);
+  border-radius: var(--ctk-radius-md);
+  padding: var(--ctk-space-sm) var(--ctk-space-md);
+  margin-bottom: var(--ctk-space-sm);
+  background: var(--ctk-glass-bg);
+}
+#generatorPanel .gen-label {
+  font-size: 11px; color: var(--vscode-descriptionForeground, #999);
+  align-self: center; white-space: nowrap;
+}
+#generatorPanel .gen-check {
+  display: flex; align-items: center; gap: 4px;
+  font-size: 12px; white-space: nowrap;
+}
 .test-card-body {
   max-height: 0; overflow: hidden;
   transition: max-height 0.35s var(--ctk-ease), padding 0.35s var(--ctk-ease);
@@ -821,6 +856,7 @@ body.vscode-high-contrast #problemContent img:not(.tex-formula):not(.tex-graphic
     <button id="submitBtn" class="success"><span class="codicon codicon-cloud-upload"></span> <span data-ko="제출" data-en="Submit">Submit</span></button>
     <button id="githubPushBtn" class="secondary"><span class="codicon codicon-github"></span> <span data-ko="GitHub" data-en="GitHub">GitHub</span></button>
     <button id="translateBtn" class="secondary"><span class="codicon codicon-globe"></span> <span data-ko="번역" data-en="Translate">Translate</span></button>
+    <button id="maximizeBtn" class="secondary" title="Open problem in editor tab"><span class="codicon codicon-screen-full"></span> <span data-ko="크게" data-en="Max">Max</span></button>
   </div>
   <!-- Problem display -->
   <div id="problemContent">
@@ -855,9 +891,57 @@ body.vscode-high-contrast #problemContent img:not(.tex-formula):not(.tex-graphic
     <span style="flex:1;"></span>
     <button id="runAllBtn" class="success"><span class="codicon codicon-play"></span> <span data-ko="전체 실행" data-en="Run All">Run All</span></button>
     <button id="addTestBtn" class="secondary"><span class="codicon codicon-add"></span> <span data-ko="추가" data-en="Add">Add</span></button>
+    <button id="genToggleBtn" class="secondary"><span class="codicon codicon-wand"></span> <span data-ko="생성기" data-en="Generator">Generator</span></button>
+    <button id="spjToggleBtn" class="secondary" title="Special judge"><span class="codicon codicon-law"></span> <span data-ko="저지" data-en="Judge">Judge</span></button>
   </div>
   <div id="testInfoBar" class="info-bar" data-ko="테스트 케이스가 없습니다." data-en="No test cases loaded.">
     No test cases loaded.
+  </div>
+  <!-- Test case generator: builds large stress inputs (random / sorted /
+       constant arrays). Expected output stays empty, so generated cases run
+       in neutral mode — runtime and errors only, no pass/fail verdict. -->
+  <div id="generatorPanel" style="display:none;">
+    <div class="row">
+      <span class="gen-label" data-ko="패턴" data-en="Pattern">Pattern</span>
+      <select id="genPattern" style="flex:1;">
+        <option value="random" data-ko="랜덤 배열" data-en="Random array">Random array</option>
+        <option value="increasing" data-ko="증가 수열 (1..N)" data-en="Increasing (1..N)">Increasing (1..N)</option>
+        <option value="decreasing" data-ko="감소 수열 (N..1)" data-en="Decreasing (N..1)">Decreasing (N..1)</option>
+        <option value="constant" data-ko="상수 배열" data-en="Constant array">Constant array</option>
+        <option value="permutation" data-ko="랜덤 순열 (1..N 셔플)" data-en="Shuffled permutation (1..N)">Shuffled permutation (1..N)</option>
+        <option value="sawtooth" data-ko="톱니 (min..max 주기 반복)" data-en="Sawtooth (min..max repeating)">Sawtooth (min..max repeating)</option>
+        <option value="fewunique" data-ko="적은 종류 값 (정렬 최악 케이스)" data-en="Few unique values (sort adversary)">Few unique values (sort adversary)</option>
+        <option value="antihash-java" data-ko="안티해시: Java hashCode 충돌 문자열" data-en="Anti-hash: Java hashCode collisions">Anti-hash: Java hashCode collisions</option>
+        <option value="antihash-map" data-ko="안티해시: unordered_map 충돌 (소수 배수)" data-en="Anti-hash: unordered_map (prime multiples)">Anti-hash: unordered_map (prime multiples)</option>
+      </select>
+    </div>
+    <div class="row">
+      <span class="gen-label">N</span>
+      <input id="genCount" type="number" value="20" min="1" max="1000000" style="flex:1;"/>
+      <span class="gen-label" data-ko="최소" data-en="Min">Min</span>
+      <input id="genMin" type="number" value="1" style="flex:1;"/>
+      <span class="gen-label" data-ko="최대" data-en="Max">Max</span>
+      <input id="genMax" type="number" value="100000" style="flex:1;"/>
+    </div>
+    <div class="row">
+      <select id="genSep" style="flex:1;">
+        <option value="space" data-ko="공백 구분" data-en="Space separated">Space separated</option>
+        <option value="newline" data-ko="줄바꿈 구분" data-en="One per line">One per line</option>
+      </select>
+      <label class="gen-check"><input id="genFirstLineN" type="checkbox" checked/> <span data-ko="첫 줄에 N 포함" data-en="N on first line">N on first line</span></label>
+      <button id="genBtn" class="success"><span class="codicon codicon-sparkle"></span> <span data-ko="생성" data-en="Generate">Generate</span></button>
+    </div>
+  </div>
+  <!-- Special judge (#36): for problems with multiple valid answers, a JS
+       validator replaces output comparison. Saved into problem.json. -->
+  <div id="spjPanel" style="display:none;">
+    <div class="info-bar" data-ko="JS 검증 함수 본문 — input, expected, actual 변수를 받아 true를 반환하면 통과. 비워두면 일반 출력 비교." data-en="JS validator body — receives input, expected, actual; return true to pass. Leave empty for normal comparison.">
+      JS validator body — receives input, expected, actual; return true to pass. Leave empty for normal comparison.
+    </div>
+    <textarea id="spjCode" rows="6" style="width:100%; box-sizing:border-box; font-family:var(--vscode-editor-font-family, monospace); font-size:12px;" placeholder="var nums = actual.trim().split(/\\s+/).map(Number);&#10;return nums.length === 3 && nums[0] + nums[1] === nums[2];"></textarea>
+    <div class="row" style="justify-content:flex-end; margin-top:6px;">
+      <button id="spjSaveBtn" class="success btn-sm"><span class="codicon codicon-save"></span> <span data-ko="검증기 저장" data-en="Save Validator">Save Validator</span></button>
+    </div>
   </div>
   <div id="testCaseContainer">
     <!-- Test case cards inserted here -->
@@ -895,6 +979,15 @@ body.vscode-high-contrast #problemContent img:not(.tex-formula):not(.tex-graphic
   <div id="templateEditActions" style="display:none; margin-top:8px; gap:6px; justify-content:flex-end;">
     <button id="templateSaveEditBtn" class="success btn-sm"><span class="codicon codicon-check"></span> <span data-ko="변경 저장" data-en="Save Changes">Save Changes</span></button>
     <button id="templateCancelEditBtn" class="secondary btn-sm"><span class="codicon codicon-discard"></span> <span data-ko="취소" data-en="Cancel">Cancel</span></button>
+  </div>
+  <!-- Marks the selected template as the seed for new solution files of a
+       platform (applies to the template's own language) -->
+  <div id="templateDefaultSection" style="display:none;">
+    <div class="section-title" data-ko="플랫폼 기본 템플릿" data-en="Default For Platforms">Default For Platforms</div>
+    <div class="info-bar" data-ko="선택한 플랫폼에서 문제를 가져올 때 이 템플릿으로 코드 파일을 생성합니다." data-en="New solution files for the selected platforms start from this template.">
+      New solution files for the selected platforms start from this template.
+    </div>
+    <div class="row" id="templateDefaultBtns"></div>
   </div>
 </div>
 
@@ -1147,6 +1240,12 @@ body.vscode-high-contrast #problemContent img:not(.tex-formula):not(.tex-graphic
   </div>
 </div>
 
+<!-- ===== FOCUS MODE TOOLBAR (#33) ===== -->
+<div id="focusToolbar">
+  <button id="focusOpenTabBtn" class="secondary" title="Open in editor tab"><span class="codicon codicon-link-external"></span></button>
+  <button id="focusExitBtn" class="secondary" title="Exit maximize"><span class="codicon codicon-screen-normal"></span></button>
+</div>
+
 <!-- ===== TOAST ===== -->
 <div id="toast" class="toast info"></div>
 
@@ -1168,6 +1267,7 @@ body.vscode-high-contrast #problemContent img:not(.tex-formula):not(.tex-graphic
     testCases: [],
     testRunning: false,
     templates: [],
+    templateDefaults: {},
     selectedTemplate: null,
     _templateOriginalCode: '',
     // Stopwatch
@@ -2400,13 +2500,16 @@ body.vscode-high-contrast #problemContent img:not(.tex-formula):not(.tex-graphic
     this.innerHTML = '<span class="codicon codicon-loading codicon-modifier-spin"></span> ' + t('실행 중...', 'Running...');
     // Collect test case data from UI
     var testCases = collectTestCases();
-    vscode.postMessage({ command: 'runTests', data: { testCases: testCases, language: state.language } });
+    vscode.postMessage({ command: 'runTests', data: { testCases: testCases, language: state.language, validator: $('#spjCode').value } });
   });
 
   $('#addTestBtn').addEventListener('click', function() {
     state.testCases.push({ input: '', expectedOutput: '', actualOutput: '', passed: null });
     renderTestCases();
-    // Auto-expand the newly added card
+    expandLastTestCard();
+  });
+
+  function expandLastTestCard() {
     var cards = $$('.test-card');
     var lastCard = cards[cards.length - 1];
     if (lastCard) {
@@ -2415,6 +2518,118 @@ body.vscode-high-contrast #problemContent img:not(.tex-formula):not(.tex-graphic
       if (body) body.classList.add('open');
       if (toggle) toggle.classList.add('open');
     }
+  }
+
+  // Maximize toggle (#33): the statement takes over the whole plugin window;
+  // the floating toolbar exits, or opens a full editor-tab view instead.
+  $('#maximizeBtn').addEventListener('click', function() {
+    document.body.classList.add('ctk-focus');
+  });
+  $('#focusExitBtn').addEventListener('click', function() {
+    document.body.classList.remove('ctk-focus');
+  });
+  $('#focusOpenTabBtn').addEventListener('click', function() {
+    vscode.postMessage({ command: 'openProblemPanel' });
+  });
+
+  // ===== TEST CASE GENERATOR (#36) =====
+  $('#genToggleBtn').addEventListener('click', function() {
+    var panel = $('#generatorPanel');
+    panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
+  });
+
+  $('#genBtn').addEventListener('click', function() {
+    var pattern = $('#genPattern').value;
+    var n = Math.floor(Number($('#genCount').value));
+    var min = Math.floor(Number($('#genMin').value));
+    var max = Math.floor(Number($('#genMax').value));
+    if (!isFinite(n) || n < 1) { showToast(t('N은 1 이상이어야 합니다.', 'N must be at least 1.'), 'error'); return; }
+    if (n > 1000000) { showToast(t('N은 최대 1,000,000까지 지원합니다.', 'N is capped at 1,000,000.'), 'error'); return; }
+    var usesRange = pattern === 'random' || pattern === 'constant' || pattern === 'sawtooth' || pattern === 'fewunique';
+    if (usesRange && (!isFinite(min) || !isFinite(max) || min > max)) {
+      showToast(t('최소/최대 범위를 확인하세요.', 'Check the min/max range.'), 'error');
+      return;
+    }
+
+    var values = new Array(n);
+    var i;
+    switch (pattern) {
+      case 'random':
+        for (i = 0; i < n; i++) values[i] = min + Math.floor(Math.random() * (max - min + 1));
+        break;
+      case 'increasing':
+        for (i = 0; i < n; i++) values[i] = i + 1;
+        break;
+      case 'decreasing':
+        for (i = 0; i < n; i++) values[i] = n - i;
+        break;
+      case 'constant': {
+        var c = min + Math.floor(Math.random() * (max - min + 1));
+        for (i = 0; i < n; i++) values[i] = c;
+        break;
+      }
+      case 'permutation': {
+        for (i = 0; i < n; i++) values[i] = i + 1;
+        // Fisher-Yates shuffle
+        for (i = n - 1; i > 0; i--) {
+          var j = Math.floor(Math.random() * (i + 1));
+          var tmp = values[i]; values[i] = values[j]; values[j] = tmp;
+        }
+        break;
+      }
+      case 'sawtooth': {
+        // Repeating ramps stress branch predictors and naive pivot choices
+        var period = Math.max(1, max - min + 1);
+        for (i = 0; i < n; i++) values[i] = min + (i % period);
+        break;
+      }
+      case 'fewunique': {
+        // Only 3 distinct values: adversarial for 2-way quicksort partitions
+        var pool = [];
+        for (i = 0; i < 3; i++) pool.push(min + Math.floor(Math.random() * (max - min + 1)));
+        for (i = 0; i < n; i++) values[i] = pool[Math.floor(Math.random() * pool.length)];
+        break;
+      }
+      case 'antihash-java': {
+        // "Aa" and "BB" have the same Java hashCode (2112), so every
+        // concatenation of k blocks collides — N distinct strings, one hash.
+        var blocks = Math.max(10, Math.ceil(Math.log(n + 1) / Math.LN2));
+        for (i = 0; i < n; i++) {
+          var s = '';
+          for (var b = 0; b < blocks; b++) { s += ((i >> b) & 1) ? 'BB' : 'Aa'; }
+          values[i] = s;
+        }
+        break;
+      }
+      case 'antihash-map': {
+        // libstdc++ unordered_map buckets are prime-sized; multiples of a
+        // bucket prime all land in one bucket → O(N²) blowup.
+        var P = 126271;
+        for (i = 0; i < n; i++) values[i] = P * (i + 1);
+        break;
+      }
+    }
+
+    var sep = $('#genSep').value === 'newline' ? '\\n' : ' ';
+    var input = values.join(sep);
+    if ($('#genFirstLineN').checked) { input = n + '\\n' + input; }
+
+    // Expected output stays empty on purpose: the case runs in neutral mode
+    // (runtime + errors only), since generated inputs have no known answer.
+    state.testCases.push({ input: input, expectedOutput: '', actualOutput: '', passed: null });
+    renderTestCases();
+    expandLastTestCard();
+    showToast(t('테스트 케이스 생성 완료 (N=' + n + ')', 'Test case generated (N=' + n + ')'), 'success');
+  });
+
+  // ===== SPECIAL JUDGE (#36) =====
+  $('#spjToggleBtn').addEventListener('click', function() {
+    var panel = $('#spjPanel');
+    panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
+  });
+
+  $('#spjSaveBtn').addEventListener('click', function() {
+    vscode.postMessage({ command: 'saveValidator', data: { validator: $('#spjCode').value } });
   });
 
   function collectTestCases() {
@@ -2466,6 +2681,8 @@ body.vscode-high-contrast #problemContent img:not(.tex-formula):not(.tex-graphic
       var passedStatus = null;
       if (tc.passed === true) { statusClass = 'pass'; titleText = '#' + (i + 1) + ' PASS'; passedStatus = true; }
       else if (tc.passed === false) { statusClass = 'fail'; titleText = '#' + (i + 1) + ' FAIL'; passedStatus = false; }
+      // Ran without an expected output: neutral — executed, no verdict (#36)
+      else if (tc.ran) { statusClass = 'neutral'; passedStatus = 'neutral'; }
 
       var card = document.createElement('div');
       card.className = 'test-card ' + statusClass;
@@ -2493,8 +2710,33 @@ body.vscode-high-contrast #problemContent img:not(.tex-formula):not(.tex-graphic
         badgeFail.className = 'badge badge-fail';
         badgeFail.textContent = 'FAIL';
         title.appendChild(badgeFail);
+      } else if (passedStatus === 'neutral') {
+        var badgeNeutral = document.createElement('span');
+        badgeNeutral.className = 'badge badge-neutral';
+        badgeNeutral.textContent = t('\uC2E4\uD589\uB428', 'RAN');
+        title.appendChild(badgeNeutral);
       }
       header.appendChild(title);
+
+      // Run just this case \u2014 debugging one failing input shouldn't require
+      // re-running the whole suite (#36)
+      var runBtn = document.createElement('button');
+      runBtn.className = 'test-card-run';
+      runBtn.title = t('\uC774 \uCF00\uC774\uC2A4\uB9CC \uC2E4\uD589', 'Run this case only');
+      runBtn.disabled = !!state.testRunning;
+      var runIcon = document.createElement('span');
+      runIcon.className = 'codicon codicon-play';
+      runBtn.appendChild(runIcon);
+      header.appendChild(runBtn);
+
+      // Debug this case with the IDE debugger (#36)
+      var dbgBtn = document.createElement('button');
+      dbgBtn.className = 'test-card-run';
+      dbgBtn.title = t('이 입력으로 디버그 실행', 'Debug with this input');
+      var dbgIcon = document.createElement('span');
+      dbgIcon.className = 'codicon codicon-debug-alt';
+      dbgBtn.appendChild(dbgIcon);
+      header.appendChild(dbgBtn);
 
       var delBtn = document.createElement('button');
       delBtn.className = 'test-card-delete';
@@ -2617,9 +2859,10 @@ body.vscode-high-contrast #problemContent img:not(.tex-formula):not(.tex-graphic
       card.appendChild(body);
       container.appendChild(card);
 
-      // Bind accordion toggle
+      // Bind accordion toggle (ignore clicks on the header buttons — the run
+      // icon click lands on the codicon span, so walk up with closest)
       header.addEventListener('click', function(e) {
-        if (e.target.classList.contains('test-card-delete')) return;
+        if (e.target.closest('.test-card-delete') || e.target.closest('.test-card-run')) return;
         body.classList.toggle('open');
         toggle.classList.toggle('open');
       });
@@ -2629,6 +2872,32 @@ body.vscode-high-contrast #problemContent img:not(.tex-formula):not(.tex-graphic
         e.stopPropagation();
         state.testCases.splice(i, 1);
         renderTestCases();
+      });
+
+      // Bind single-case run (#36)
+      runBtn.addEventListener('click', function(e) {
+        e.stopPropagation();
+        if (state.testRunning) return;
+        state.testRunning = true;
+        renderTestCases();
+        vscode.postMessage({
+          command: 'runSingleTest',
+          data: {
+            index: i,
+            testCase: { input: tc.input || '', expectedOutput: tc.expectedOutput || '', actualOutput: '', passed: null },
+            language: state.language,
+            validator: $('#spjCode').value,
+          },
+        });
+      });
+
+      // Bind debug run (#36)
+      dbgBtn.addEventListener('click', function(e) {
+        e.stopPropagation();
+        vscode.postMessage({
+          command: 'debugTest',
+          data: { index: i, testCase: { input: tc.input || '', expectedOutput: tc.expectedOutput || '' } },
+        });
       });
 
       // Bind textarea input
@@ -2711,6 +2980,19 @@ body.vscode-high-contrast #problemContent img:not(.tex-formula):not(.tex-graphic
       langBadge.textContent = tmpl.language || '';
       item.appendChild(langBadge);
 
+      // Star the templates that seed some platform's new solution files (#35)
+      var defaultPlatforms = Object.keys(state.templateDefaults).filter(function(key) {
+        return state.templateDefaults[key] === tmpl.name;
+      }).map(function(key) { return key.split(':')[0]; });
+      if (defaultPlatforms.length > 0) {
+        var starBadge = document.createElement('span');
+        starBadge.className = 'template-lang-badge';
+        starBadge.style.color = 'var(--ctk-warning)';
+        starBadge.textContent = '★ ' + defaultPlatforms.join(', ');
+        starBadge.title = t('플랫폼 기본 템플릿', 'Default template for platforms');
+        item.appendChild(starBadge);
+      }
+
       item.addEventListener('click', function() {
         state.selectedTemplate = tmpl.name;
         container.querySelectorAll('.template-item').forEach(function(i) { i.classList.remove('selected'); });
@@ -2724,9 +3006,48 @@ body.vscode-high-contrast #problemContent img:not(.tex-formula):not(.tex-graphic
           $('#templateLangSelect').value = found.language || 'JAVA';
           $('#templateEditActions').style.display = 'flex';
         }
+        renderTemplateDefaults();
       });
 
       container.appendChild(item);
+    });
+  }
+
+  // Platform-default toggles for the selected template (#35). Each button
+  // binds "SOURCE:LANGUAGE" (the template's own language) to the template;
+  // clicking an active one clears the mapping.
+  function renderTemplateDefaults() {
+    var section = $('#templateDefaultSection');
+    var container = $('#templateDefaultBtns');
+    var tmpl = state.templates.find(function(t) { return t.name === state.selectedTemplate; });
+    if (!tmpl) {
+      section.style.display = 'none';
+      return;
+    }
+    section.style.display = 'block';
+    container.textContent = '';
+    var platforms = [
+      { id: 'PROGRAMMERS', label: t('프로그래머스', 'Programmers') },
+      { id: 'SWEA', label: 'SWEA' },
+      { id: 'LEETCODE', label: 'LeetCode' },
+      { id: 'CODEFORCES', label: 'Codeforces' },
+    ];
+    platforms.forEach(function(pf) {
+      var key = pf.id + ':' + (tmpl.language || 'JAVA');
+      var isActive = state.templateDefaults[key] === tmpl.name;
+      var btn = document.createElement('button');
+      btn.className = isActive ? 'success btn-sm' : 'secondary btn-sm';
+      btn.textContent = (isActive ? '★ ' : '') + pf.label;
+      btn.title = isActive
+        ? t('클릭하여 기본 지정 해제', 'Click to clear default')
+        : t(tmpl.language + ' 문제를 가져올 때 이 템플릿 사용', 'Use this template for ' + tmpl.language + ' fetches');
+      btn.addEventListener('click', function() {
+        vscode.postMessage({
+          command: 'setDefaultTemplate',
+          data: { source: pf.id, language: tmpl.language || 'JAVA', name: isActive ? '' : tmpl.name },
+        });
+      });
+      container.appendChild(btn);
     });
   }
 
@@ -3410,6 +3731,9 @@ body.vscode-high-contrast #problemContent img:not(.tex-formula):not(.tex-graphic
         // Update problem ID input
         if (p.id) { $('#problemIdInput').value = p.id; }
 
+        // Restore the problem's saved special judge validator (#36)
+        $('#spjCode').value = p.validator || '';
+
         showToast(t('문제 로드 완료: ', 'Problem loaded: ') + (p.title || p.id), 'success');
 
         // If there are queued problems, fetch next
@@ -3428,6 +3752,7 @@ body.vscode-high-contrast #problemContent img:not(.tex-formula):not(.tex-graphic
         state.testCases = [];
         $('#problemContent').textContent = '';
         $('#problemIdInput').value = '';
+        $('#spjCode').value = '';
         renderTestCases();
         break;
       }
@@ -3452,11 +3777,21 @@ body.vscode-high-contrast #problemContent img:not(.tex-formula):not(.tex-graphic
         var r = msg.data;
         var idx = r.index !== undefined ? r.index : 0;
         if (state.testCases[idx]) {
-          state.testCases[idx].actualOutput = r.output || '';
-          state.testCases[idx].passed = r.passed;
-          state.testCases[idx].error = r.error || '';
-          state.testCases[idx].executionTimeMs = r.executionTimeMs;
-          state.testCases[idx].peakMemoryKB = r.peakMemoryKB;
+          if (r.status === 'running') {
+            // Clear the previous verdict while the case re-runs
+            state.testCases[idx].actualOutput = '';
+            state.testCases[idx].passed = null;
+            state.testCases[idx].error = '';
+            state.testCases[idx].ran = false;
+          } else {
+            state.testCases[idx].actualOutput = r.actualOutput || '';
+            // passed === null with ran === true means neutral (no expected output)
+            state.testCases[idx].passed = r.passed;
+            state.testCases[idx].ran = true;
+            state.testCases[idx].error = r.error || '';
+            state.testCases[idx].executionTimeMs = r.timeMs;
+            state.testCases[idx].peakMemoryKB = r.memoryKB;
+          }
         }
         renderTestCases();
         // Auto-expand the result card
@@ -3478,13 +3813,20 @@ body.vscode-high-contrast #problemContent img:not(.tex-formula):not(.tex-graphic
         runAllBtn.disabled = false;
         runAllBtn.innerHTML = '<span class="codicon codicon-play"></span> <span data-ko="전체 실행" data-en="Run All">' + t('전체 실행', 'Run All') + '</span>';
         renderTestCases();
-        var allPass = state.testCases.every(function(tc) { return tc.passed === true; });
-        if (allPass && state.testCases.length > 0) {
+        // Neutral cases (no expected output) have passed === null and are
+        // excluded from the pass/fail verdict
+        var fc = state.testCases.filter(function(tc) { return tc.passed === false; }).length;
+        if (fc > 0) {
+          showToast(fc + t('개 테스트 실패', ' test(s) failed.'), 'error');
+        } else if (msg.data.totalCount > 0) {
           showToast(t('모든 테스트 통과!', 'All tests passed!'), 'success');
-        } else {
-          var fc = state.testCases.filter(function(tc) { return tc.passed === false; }).length;
-          if (fc > 0) showToast(fc + t('개 테스트 실패', ' test(s) failed.'), 'error');
         }
+        break;
+      }
+
+      case 'singleTestComplete': {
+        state.testRunning = false;
+        renderTestCases();
         break;
       }
 
@@ -3505,7 +3847,14 @@ body.vscode-high-contrast #problemContent img:not(.tex-formula):not(.tex-graphic
 
       case 'templateList': {
         state.templates = Array.isArray(msg.data) ? msg.data : (msg.data.templates || []);
+        state.templateDefaults = (msg.data && msg.data.defaults) || {};
+        // Selection may have been deleted along with its template
+        if (state.selectedTemplate && !state.templates.some(function(tp) { return tp.name === state.selectedTemplate; })) {
+          state.selectedTemplate = null;
+          $('#templateEditActions').style.display = 'none';
+        }
         renderTemplateList();
+        renderTemplateDefaults();
         break;
       }
 

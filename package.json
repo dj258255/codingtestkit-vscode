@@ -2,7 +2,7 @@
   "name": "codingtestkit",
   "displayName": "CodingTestKit - Algorithm Problem Solver",
   "description": "Fetch, test, and submit algorithm problems from Programmers, SWEA, LeetCode, Codeforces — all without leaving VS Code.",
-  "version": "1.3.1",
+  "version": "1.4.0",
   "publisher": "codingtestkit",
   "license": "MIT",
   "engines": {
@@ -89,6 +89,10 @@
       {
         "command": "codingtestkit.openTimer",
         "title": "CodingTestKit: Open Timer"
+      },
+      {
+        "command": "codingtestkit.maximizeProblem",
+        "title": "CodingTestKit: Maximize Problem View"
       }
     ],
     "keybindings": [

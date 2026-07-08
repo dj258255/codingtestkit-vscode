@@ -2,7 +2,7 @@ import axios from 'axios';
 import * as cheerio from 'cheerio';
 import { Problem, ProblemSource, TestCase } from '../models/models';
 import { fetchAllProblems } from './codeforcesApi';
-import { fetchHtmlViaBrowser } from './browserFetch';
+import { fetchHtmlViaBrowser, getSavedClearance } from './browserFetch';
 
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36';
 const CF_BASE = 'https://codeforces.com';
@@ -61,9 +61,14 @@ export async function fetchCodeforcesProblem(problemId: string, cookies: string 
 
   const url = `${CF_BASE}/problemset/problem/${parsed.contestId}/${parsed.letter}?locale=en`;
 
-  const headers: Record<string, string> = { 'User-Agent': UA };
-  if (cookies) {
-    headers['Cookie'] = cookies;
+  // Replay Cloudflare clearance cookies from a previous browser fallback.
+  // cf_clearance is bound to the User-Agent that earned it, so the saved UA
+  // must be sent with it — otherwise Cloudflare rejects the cookie.
+  const clearance = getSavedClearance(url);
+  const headers: Record<string, string> = { 'User-Agent': clearance?.userAgent || UA };
+  const cookieParts = [cookies, clearance?.cookieHeader].filter(Boolean);
+  if (cookieParts.length > 0) {
+    headers['Cookie'] = cookieParts.join('; ');
   }
 
   const response = await axios.get(url, {

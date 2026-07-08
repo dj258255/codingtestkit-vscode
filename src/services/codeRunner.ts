@@ -14,6 +14,32 @@ const MEMORY_POLL_INTERVAL = 50;
 const MAIN_SEPARATOR = '///MAIN_SEPARATOR///';
 
 // ---------------------------------------------------------------------------
+// Build output hook
+// ---------------------------------------------------------------------------
+
+// Compiler warnings and build messages are routed here (the extension wires
+// this to a "CodingTestKit Build" output channel) instead of being mixed
+// into — or silently dropped from — the per-test results.
+let buildOutputHandler: ((label: string, text: string) => void) | null = null;
+let lastBuildReport = '';
+
+export function setBuildOutputHandler(handler: (label: string, text: string) => void): void {
+  buildOutputHandler = handler;
+}
+
+// Each test case triggers its own compile, so the same warnings would repeat
+// once per case — skip consecutive duplicates to keep the channel readable.
+function reportBuildOutput(label: string, result: RunResult): void {
+  if (!buildOutputHandler) { return; }
+  const text = [result.output, result.error].filter(Boolean).join('\n').trim();
+  if (!text) { return; }
+  const report = `${label}\n${text}`;
+  if (report === lastBuildReport) { return; }
+  lastBuildReport = report;
+  buildOutputHandler(label, text);
+}
+
+// ---------------------------------------------------------------------------
 // Tool path cache
 // ---------------------------------------------------------------------------
 
@@ -1548,6 +1574,7 @@ async function runJava(code: string, tmpDir: string, input: string, timeout: num
 
   // Compile
   const compileResult = await executeProcess(javac, ['-encoding', 'UTF-8', fileName], tmpDir, null, COMPILE_TIMEOUT);
+  reportBuildOutput(`javac ${fileName}`, compileResult);
   if (compileResult.exitCode !== 0) {
     return {
       output: '',
@@ -1625,6 +1652,7 @@ async function runJavaMultiFile(
 
   // Compile all files together
   const compileResult = await executeProcess(javac, ['-encoding', 'UTF-8', ...files], tmpDir, null, COMPILE_TIMEOUT);
+  reportBuildOutput(`javac ${files.join(' ')}`, compileResult);
   if (compileResult.exitCode !== 0) {
     return {
       output: '',
@@ -1680,6 +1708,7 @@ async function runCpp(code: string, tmpDir: string, input: string, timeout: numb
   const compileResult = await executeProcess(
     gpp, ['-std=c++17', '-O2', '-o', outPath, srcPath], tmpDir, null, COMPILE_TIMEOUT,
   );
+  reportBuildOutput('g++ solution.cpp', compileResult);
   if (compileResult.exitCode !== 0) {
     return {
       output: '',
@@ -1727,6 +1756,7 @@ async function runKotlin(code: string, tmpDir: string, input: string, timeout: n
   const compileResult = await executeProcess(
     kotlinc, ['-J-Dfile.encoding=UTF-8', 'Solution.kt', '-include-runtime', '-d', 'solution.jar'], tmpDir, null, COMPILE_TIMEOUT,
   );
+  reportBuildOutput('kotlinc Solution.kt', compileResult);
   if (compileResult.exitCode !== 0) {
     return {
       output: '',
@@ -1782,6 +1812,7 @@ async function runRust(code: string, tmpDir: string, input: string, timeout: num
   const compileResult = await executeProcess(
     rustc, ['-O', '--edition', '2021', '-o', outPath, srcPath], tmpDir, null, COMPILE_TIMEOUT,
   );
+  reportBuildOutput('rustc solution.rs', compileResult);
   if (compileResult.exitCode !== 0) {
     return {
       output: '',
@@ -1816,6 +1847,7 @@ async function runGo(code: string, tmpDir: string, input: string, timeout: numbe
   const compileResult = await executeProcess(
     go, ['build', '-o', outPath, srcPath], tmpDir, null, COMPILE_TIMEOUT,
   );
+  reportBuildOutput('go build solution.go', compileResult);
   if (compileResult.exitCode !== 0) {
     return {
       output: '',
