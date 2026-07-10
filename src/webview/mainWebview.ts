@@ -1556,8 +1556,9 @@ body.ctk-focus #focusToolbar { display: flex; }
   });
 
   $('#githubPushBtn').addEventListener('click', function() {
+    // The provider shows its own progress toast once it actually starts
+    // pushing — the click may route through the login flow first.
     vscode.postMessage({ command: 'pushToGitHub', data: {} });
-    showToast(t('GitHub에 푸시 중...', 'Pushing to GitHub...'));
   });
 
   $('#translateBtn').addEventListener('click', function() {

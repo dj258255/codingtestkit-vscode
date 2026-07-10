@@ -1172,16 +1172,19 @@ export class CodingTestKitViewProvider implements vscode.WebviewViewProvider {
   }
 
   private async _pushToGitHub(): Promise<void> {
+    // Auth and repo selection are independent of problem state — resolve them
+    // first so the GitHub button doubles as the login entry point.
+    if (!(await getToken())) {
+      await this._githubLogin();
+      if (!(await getToken())) { return; }
+    }
+    let repo = await getRepoFullName();
+    if (!repo) {
+      repo = await this._pickGithubRepo();
+      if (!repo) { return; }
+    }
     if (!this._currentProblem) {
       this.sendCommand('error', { message: t('먼저 문제를 가져와주세요.', 'Please fetch a problem first.') });
-      return;
-    }
-    const token = await getToken();
-    const repo = await getRepoFullName();
-    if (!token || !repo) {
-      this.sendCommand('error', {
-        message: t('GitHub 설정을 먼저 완료해주세요.', 'Please configure GitHub settings first.'),
-      });
       return;
     }
 
@@ -1410,6 +1413,27 @@ export class CodingTestKitViewProvider implements vscode.WebviewViewProvider {
         }
       }
     }
+  }
+
+  private async _pickGithubRepo(): Promise<string | undefined> {
+    const token = await getToken();
+    if (!token) { return undefined; }
+    try {
+      const repos = await listRepos(token);
+      const picked = await vscode.window.showQuickPick(repos, {
+        title: t('푸시할 GitHub 레포지토리 선택', 'Select a GitHub repository to push to'),
+        ignoreFocusOut: true,
+      });
+      if (picked) {
+        await setRepoFullName(picked);
+        // Keep the settings panel dropdown in sync with the QuickPick choice
+        await this._githubLoadConfig();
+        return picked;
+      }
+    } catch {
+      this.sendCommand('error', { message: t('레포 목록을 불러오지 못했습니다.', 'Failed to load repository list.') });
+    }
+    return undefined;
   }
 
   private async _githubSaveConfig(data: { repo: string; autoPush: boolean }): Promise<void> {
