@@ -25,6 +25,10 @@ export async function setToken(token: string): Promise<void> {
   await globalState.update('github.token', token);
 }
 
+export async function clearToken(): Promise<void> {
+  await globalState.update('github.token', undefined);
+}
+
 // --- Repo ---
 
 export async function getRepoFullName(): Promise<string | undefined> {

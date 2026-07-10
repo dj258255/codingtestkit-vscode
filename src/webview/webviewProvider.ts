@@ -16,7 +16,7 @@ import { run as runCode, runProgrammers, getDetectedPaths } from '../services/co
 import { submitCode } from '../services/submitService';
 import { browserSubmit } from '../services/browserSubmit';
 import { getCookies, setCookies, getUsername, setUsername, logout, isLoggedIn, getLoginUrl, fetchUsername, isDirectLoginSupported, directLogin, browserLogin } from '../services/authService';
-import { getToken, setToken, getRepoFullName, setRepoFullName, getAutoPushEnabled, setAutoPushEnabled, validateToken, listRepos, pushSolution } from '../services/githubService';
+import { getToken, setToken, clearToken, getRepoFullName, setRepoFullName, getAutoPushEnabled, setAutoPushEnabled, validateToken, listRepos, pushSolution } from '../services/githubService';
 import { getTemplates, saveTemplate, deleteTemplate, getDefaultTemplateMap, setDefaultTemplate } from '../services/templateService';
 import { getProblemPanelHtml } from './problemPanel';
 import { createProblemFiles, loadProblemFromFolder, findProblemFolder } from '../services/problemFileManager';
@@ -171,8 +171,8 @@ export class CodingTestKitViewProvider implements vscode.WebviewViewProvider {
         case 'openProblemPanel':
           this.openProblemPanel();
           break;
-        case 'pushToGitHub':
-          await this._pushToGitHub();
+        case 'githubLogout':
+          await this._githubLogout();
           break;
         case 'changePlatform': {
           const newSource = data.source as ProblemSource;
@@ -1171,26 +1171,14 @@ export class CodingTestKitViewProvider implements vscode.WebviewViewProvider {
     this._sendTemplateList();
   }
 
+  // Pure push — only reached from the submit flow (auto-push on accepted).
+  // Login/repo setup lives on the toolbar GitHub toggle and in Settings.
   private async _pushToGitHub(): Promise<void> {
-    // A click that had to set up auth/repo is setup-only: connecting and
-    // pushing in the same click would fire a surprise push (or a confusing
-    // "fetch a problem" error) right after login. Pushing starts from the
-    // next click, once everything is already configured.
-    let didSetup = false;
-    if (!(await getToken())) {
-      await this._githubLogin();
-      if (!(await getToken())) { return; }
-      didSetup = true;
-    }
-    let repo = await getRepoFullName();
-    if (!repo) {
-      repo = await this._pickGithubRepo();
-      if (!repo) { return; }
-      didSetup = true;
-    }
-    if (didSetup) {
-      this.sendCommand('info', {
-        message: t('✓ GitHub 연동 완료 — 문제를 푼 뒤 다시 누르면 푸시됩니다.', '✓ GitHub connected — press again after solving a problem to push.'),
+    const token = await getToken();
+    const repo = await getRepoFullName();
+    if (!token || !repo) {
+      this.sendCommand('error', {
+        message: t('GitHub 버튼으로 먼저 로그인해주세요.', 'Please log in with the GitHub button first.'),
       });
       return;
     }
@@ -1400,6 +1388,10 @@ export class CodingTestKitViewProvider implements vscode.WebviewViewProvider {
         this.sendCommand('info', { message: t('✓ GitHub 로그인 성공', '✓ GitHub login successful') });
         await this._githubLoadConfig();
         await this._githubListRepos();
+        // Connecting means login + target repo — prompt right away if unset
+        if (!(await getRepoFullName())) {
+          await this._pickGithubRepo();
+        }
       }
     } catch {
       // Fallback: ask for token manually
@@ -1419,11 +1411,27 @@ export class CodingTestKitViewProvider implements vscode.WebviewViewProvider {
           this.sendCommand('info', { message: t('✓ GitHub 토큰 설정 완료', '✓ GitHub token configured') });
           await this._githubLoadConfig();
           await this._githubListRepos();
+          if (!(await getRepoFullName())) {
+            await this._pickGithubRepo();
+          }
         } else {
           this.sendCommand('error', { message: t('유효하지 않은 토큰입니다.', 'Invalid token.') });
         }
       }
     }
+  }
+
+  private async _githubLogout(): Promise<void> {
+    const disconnect = t('연동 해제', 'Disconnect');
+    const choice = await vscode.window.showWarningMessage(
+      t('GitHub 연동을 해제할까요? 저장된 토큰이 삭제됩니다.', 'Disconnect GitHub? The saved token will be removed.'),
+      { modal: true },
+      disconnect,
+    );
+    if (choice !== disconnect) { return; }
+    await clearToken();
+    this.sendCommand('info', { message: t('GitHub 연동이 해제되었습니다.', 'GitHub disconnected.') });
+    await this._githubLoadConfig();
   }
 
   private async _pickGithubRepo(): Promise<string | undefined> {

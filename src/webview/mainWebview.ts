@@ -854,7 +854,7 @@ body.ctk-focus #focusToolbar { display: flex; }
   <!-- Row 3: Submit + GitHub Push + Translate -->
   <div class="row">
     <button id="submitBtn" class="success"><span class="codicon codicon-cloud-upload"></span> <span data-ko="제출" data-en="Submit">Submit</span></button>
-    <button id="githubPushBtn" class="secondary"><span class="codicon codicon-github"></span> <span data-ko="GitHub" data-en="GitHub">GitHub</span></button>
+    <button id="githubPushBtn" class="secondary"><span class="codicon codicon-github"></span> <span id="githubBtnLabel" data-ko="GitHub" data-en="GitHub">GitHub</span></button>
     <button id="translateBtn" class="secondary"><span class="codicon codicon-globe"></span> <span data-ko="번역" data-en="Translate">Translate</span></button>
     <button id="maximizeBtn" class="secondary" title="Open problem in editor tab"><span class="codicon codicon-screen-full"></span> <span data-ko="크게" data-en="Max">Max</span></button>
   </div>
@@ -1271,6 +1271,7 @@ body.ctk-focus #focusToolbar { display: flex; }
     platform: 'PROGRAMMERS',
     language: 'JAVA',
     problem: null,
+    githubConnected: false,
     testCases: [],
     testRunning: false,
     templates: [],
@@ -1555,10 +1556,10 @@ body.ctk-focus #focusToolbar { display: flex; }
     showToast(t('코드 제출 중...', 'Submitting code...'));
   });
 
+  // Login/logout toggle — pushing happens through the submit flow
+  // (auto-push on accepted), not through this button.
   $('#githubPushBtn').addEventListener('click', function() {
-    // The provider shows its own progress toast once it actually starts
-    // pushing — the click may route through the login flow first.
-    vscode.postMessage({ command: 'pushToGitHub', data: {} });
+    vscode.postMessage({ command: state.githubConnected ? 'githubLogout' : 'githubLogin' });
   });
 
   $('#translateBtn').addEventListener('click', function() {
@@ -4007,6 +4008,7 @@ body.ctk-focus #focusToolbar { display: flex; }
 
       case 'githubConfig': {
         var gc = msg.data || {};
+        state.githubConnected = !!gc.hasToken;
         var loginLabel = $('#settingGithubLoginLabel');
         if (loginLabel) {
           var koLabel = gc.hasToken ? '✓ 연동됨 (다시 로그인)' : 'GitHub 로그인';
@@ -4014,6 +4016,17 @@ body.ctk-focus #focusToolbar { display: flex; }
           loginLabel.setAttribute('data-ko', koLabel);
           loginLabel.setAttribute('data-en', enLabel);
           loginLabel.textContent = t(koLabel, enLabel);
+        }
+        var toolbarLabel = $('#githubBtnLabel');
+        if (toolbarLabel) {
+          var tbKo = gc.hasToken ? '로그인됨' : 'GitHub';
+          var tbEn = gc.hasToken ? 'Logged in' : 'GitHub';
+          toolbarLabel.setAttribute('data-ko', tbKo);
+          toolbarLabel.setAttribute('data-en', tbEn);
+          toolbarLabel.textContent = t(tbKo, tbEn);
+          $('#githubPushBtn').title = gc.hasToken
+            ? t('클릭하면 GitHub 연동을 해제합니다', 'Click to disconnect GitHub')
+            : t('클릭하면 GitHub에 로그인합니다', 'Click to log in to GitHub');
         }
         var repoSel = $('#settingGithubRepo');
         if (repoSel && gc.repo) {
