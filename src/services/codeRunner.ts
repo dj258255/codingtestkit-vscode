@@ -90,14 +90,44 @@ function overrideFor(tool: ToolName): string | null {
   return p && canExec(p) ? p : null;
 }
 
+// The extension host inherits the PATH captured when VS Code was launched, so
+// a tool installed (or PATH edited) afterwards shows up in a fresh cmd window
+// but not here. Re-read the live PATH from the registry as a fallback.
+let registryPathCache: string | null | undefined;
+function windowsRegistryPath(): string | null {
+  if (registryPathCache !== undefined) { return registryPathCache; }
+  registryPathCache = null;
+  if (!isWindows) { return null; }
+  const keys: Array<[string, string]> = [
+    ['HKLM', 'SYSTEM\\CurrentControlSet\\Control\\Session Manager\\Environment'],
+    ['HKCU', 'Environment'],
+  ];
+  const parts: string[] = [];
+  for (const [hive, key] of keys) {
+    try {
+      const out = execFileSync('reg', ['query', `${hive}\\${key}`, '/v', 'Path'],
+        { encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'], timeout: 5000 });
+      const match = out.match(/Path\s+REG(?:_EXPAND)?_SZ\s+(.+)/i);
+      if (match) { parts.push(match[1].trim()); }
+    } catch { /* reg.exe missing or key unreadable */ }
+  }
+  if (parts.length > 0) {
+    // REG_EXPAND_SZ values keep %VAR% references unexpanded
+    registryPathCache = parts.join(path.delimiter)
+      .replace(/%([^%;]+)%/g, (whole, name) => process.env[name] ?? whole);
+  }
+  return registryPathCache;
+}
+
 // Scans PATH directly instead of shelling out to `which`, which does not exist
 // on Windows (the extension host spawns without a shell).
-function whichSync(cmd: string): string | null {
-  const pathEnv = process.env['PATH'] ?? '';
+function scanPath(cmd: string, pathEnv: string): string | null {
   const exts = isWindows
     ? (path.extname(cmd) ? [''] : (process.env['PATHEXT'] ?? '.COM;.EXE;.BAT;.CMD').split(';'))
     : [''];
-  for (const dir of pathEnv.split(path.delimiter)) {
+  for (const rawDir of pathEnv.split(path.delimiter)) {
+    // Windows PATH entries are sometimes quoted ("C:\Program Files\...")
+    const dir = rawDir.replace(/^"|"$/g, '');
     if (!dir) { continue; }
     for (const ext of exts) {
       const candidate = path.join(dir, cmd + ext.toLowerCase());
@@ -107,6 +137,14 @@ function whichSync(cmd: string): string | null {
     }
   }
   return null;
+}
+
+function whichSync(cmd: string): string | null {
+  const found = scanPath(cmd, process.env['PATH'] ?? '');
+  if (found) { return found; }
+  // Windows: the process PATH can be stale — retry with the registry PATH
+  const regPath = windowsRegistryPath();
+  return regPath ? scanPath(cmd, regPath) : null;
 }
 
 // Verifies a candidate binary actually runs. Filters out non-executables such
@@ -256,10 +294,17 @@ function detectGpp(): string | null {
     found = firstExisting(
       'C:\\msys64\\ucrt64\\bin\\g++.exe',
       'C:\\msys64\\mingw64\\bin\\g++.exe',
+      'C:\\msys64\\clang64\\bin\\g++.exe',
+      'C:\\msys64\\mingw32\\bin\\g++.exe',
       'C:\\MinGW\\bin\\g++.exe',
       'C:\\mingw64\\bin\\g++.exe',
       'C:\\TDM-GCC-64\\bin\\g++.exe',
       'C:\\Strawberry\\c\\bin\\g++.exe',
+      'C:\\w64devkit\\bin\\g++.exe',
+      'C:\\ProgramData\\chocolatey\\bin\\g++.exe',
+      path.join(os.homedir(), 'scoop', 'shims', 'g++.exe'),
+      'C:\\Program Files\\CodeBlocks\\MinGW\\bin\\g++.exe',
+      'C:\\Program Files (x86)\\Embarcadero\\Dev-Cpp\\TDM-GCC-64\\bin\\g++.exe',
     );
   }
   // Fall back to clang++ (same flags work for both compilers)
