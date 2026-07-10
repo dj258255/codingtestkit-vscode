@@ -505,7 +505,7 @@ export class CodingTestKitViewProvider implements vscode.WebviewViewProvider {
       case Language.CPP: {
         const gpp = getDetectedPaths().gpp;
         if (!gpp) {
-          this.sendCommand('error', { message: t('g++를 찾을 수 없습니다.', 'g++ not found.') });
+          this.sendCommand('error', { message: t('g++를 찾을 수 없습니다. 설정에서 "codingtestkit.toolPath.cpp"에 컴파일러 경로를 지정해주세요.', 'g++ not found. Set "codingtestkit.toolPath.cpp" to your compiler path in Settings.') });
           return;
         }
         const outPath = path.join(folder, process.platform === 'win32' ? '.ctk_debug.exe' : '.ctk_debug');
@@ -1205,6 +1205,31 @@ export class CodingTestKitViewProvider implements vscode.WebviewViewProvider {
 
   private async _changeSetting(data: { key: string; value: any }): Promise<void> {
     const config = vscode.workspace.getConfiguration('codingtestkit');
+    // GitHub settings live in globalState (via githubService), not in the
+    // declared configuration — routing them through config.update would throw
+    // on the unregistered keys and the runtime would never see the values.
+    if (data.key === 'githubToken') {
+      const token = String(data.value ?? '').trim();
+      if (!token) { return; }
+      if (await validateToken(token)) {
+        await setToken(token);
+        this.sendCommand('info', { message: t('✓ GitHub 토큰 설정 완료', '✓ GitHub token configured') });
+        await this._githubLoadConfig();
+        await this._githubListRepos();
+      } else {
+        this.sendCommand('error', { message: t('유효하지 않은 GitHub 토큰입니다.', 'Invalid GitHub token.') });
+      }
+      return;
+    }
+    if (data.key === 'githubRepo') {
+      await setRepoFullName(String(data.value ?? ''));
+      return;
+    }
+    if (data.key === 'autoPush') {
+      await setAutoPushEnabled(!!data.value);
+      await config.update('autoPush', !!data.value, vscode.ConfigurationTarget.Global);
+      return;
+    }
     // examMode sets multiple settings at once
     if (data.key === 'examMode') {
       const isExam = data.value;
@@ -1407,8 +1432,13 @@ export class CodingTestKitViewProvider implements vscode.WebviewViewProvider {
   private async _githubListRepos(): Promise<void> {
     const token = await getToken();
     if (!token) { return; }
-    const repos = await listRepos(token);
-    this.sendCommand('githubRepos', repos);
+    try {
+      const repos = await listRepos(token);
+      this.sendCommand('githubRepos', repos);
+    } catch {
+      // Expired/revoked token or network failure — leave the dropdown as-is
+      // instead of surfacing an error toast on every webview load
+    }
   }
 
   private async _fetchTags(data: { source: string }): Promise<void> {

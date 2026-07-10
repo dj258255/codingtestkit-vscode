@@ -1135,7 +1135,14 @@ body.ctk-focus #focusToolbar { display: flex; }
   <div class="setting-group">
     <div class="setting-group-title" data-ko="GitHub 연동" data-en="GitHub Integration">GitHub Integration</div>
     <div class="setting-row">
-      <label data-ko="토큰" data-en="Token">Token</label>
+      <label data-ko="로그인" data-en="Login">Login</label>
+      <button id="settingGithubLoginBtn" class="secondary" style="width:180px;">
+        <span class="codicon codicon-github"></span>
+        <span id="settingGithubLoginLabel" data-ko="GitHub 로그인" data-en="GitHub Login">GitHub Login</span>
+      </button>
+    </div>
+    <div class="setting-row">
+      <label data-ko="토큰 (직접 입력)" data-en="Token (manual)">Token (manual)</label>
       <input id="settingGithubToken" type="password" placeholder="GitHub PAT" style="width:180px;"/>
     </div>
     <div class="setting-row">
@@ -3628,6 +3635,11 @@ body.ctk-focus #focusToolbar { display: flex; }
     vscode.postMessage({ command: 'changeSetting', data: { key: 'generateReadme', value: this.checked } });
   });
 
+  $('#settingGithubLoginBtn').addEventListener('click', function() {
+    vscode.postMessage({ command: 'githubLogin' });
+    showToast(t('GitHub 로그인 중...', 'Logging in to GitHub...'));
+  });
+
   $('#settingGithubToken').addEventListener('change', function() {
     vscode.postMessage({ command: 'changeSetting', data: { key: 'githubToken', value: this.value } });
   });
@@ -3645,6 +3657,8 @@ body.ctk-focus #focusToolbar { display: flex; }
   // Request tool paths and initial settings
   vscode.postMessage({ command: 'getToolPaths' });
   vscode.postMessage({ command: 'getSettings' });
+  vscode.postMessage({ command: 'githubLoadConfig' });
+  vscode.postMessage({ command: 'githubListRepos' });
 
   // ===== MESSAGE HANDLER FROM EXTENSION HOST =====
   window.addEventListener('message', function(event) {
@@ -3987,6 +4001,52 @@ body.ctk-focus #focusToolbar { display: flex; }
           if (s.selectedRepo) { sel.value = s.selectedRepo; }
         }
         applyI18n();
+        break;
+      }
+
+      case 'githubConfig': {
+        var gc = msg.data || {};
+        var loginLabel = $('#settingGithubLoginLabel');
+        if (loginLabel) {
+          var koLabel = gc.hasToken ? '✓ 연동됨 (다시 로그인)' : 'GitHub 로그인';
+          var enLabel = gc.hasToken ? '✓ Connected (re-login)' : 'GitHub Login';
+          loginLabel.setAttribute('data-ko', koLabel);
+          loginLabel.setAttribute('data-en', enLabel);
+          loginLabel.textContent = t(koLabel, enLabel);
+        }
+        var repoSel = $('#settingGithubRepo');
+        if (repoSel && gc.repo) {
+          // Keep the saved repo selectable even before the repo list arrives
+          var exists = Array.prototype.some.call(repoSel.options, function(o) { return o.value === gc.repo; });
+          if (!exists) {
+            var savedOpt = document.createElement('option');
+            savedOpt.value = gc.repo;
+            savedOpt.textContent = gc.repo;
+            repoSel.appendChild(savedOpt);
+          }
+          repoSel.value = gc.repo;
+        }
+        if (gc.autoPush !== undefined) { $('#settingAutoPush').checked = gc.autoPush; }
+        break;
+      }
+
+      case 'githubRepos': {
+        var repoList = msg.data || [];
+        var repoSelect = $('#settingGithubRepo');
+        if (!repoSelect) break;
+        var currentRepo = repoSelect.value;
+        repoSelect.textContent = '';
+        var placeholderOpt = document.createElement('option');
+        placeholderOpt.value = '';
+        placeholderOpt.textContent = t('-- 레포 선택 --', '-- Select repo --');
+        repoSelect.appendChild(placeholderOpt);
+        repoList.forEach(function(repo) {
+          var opt = document.createElement('option');
+          opt.value = repo;
+          opt.textContent = repo;
+          repoSelect.appendChild(opt);
+        });
+        if (currentRepo) { repoSelect.value = currentRepo; }
         break;
       }
 
