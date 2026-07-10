@@ -665,6 +665,13 @@ export class CodingTestKitViewProvider implements vscode.WebviewViewProvider {
         '✓ Code copied to clipboard. Paste and submit in the browser.'
       ),
     });
+
+    // Submission goes through the external browser, so the verdict is
+    // invisible to the extension — "auto push on submit" therefore means
+    // pushing the code the moment the user confirms the submission.
+    if (await getAutoPushEnabled()) {
+      await this._pushToGitHub();
+    }
   }
 
   private async _fallbackSubmit(source: ProblemSource, problemId: string, code: string, cookies: string): Promise<void> {
