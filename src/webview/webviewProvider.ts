@@ -1172,16 +1172,27 @@ export class CodingTestKitViewProvider implements vscode.WebviewViewProvider {
   }
 
   private async _pushToGitHub(): Promise<void> {
-    // Auth and repo selection are independent of problem state — resolve them
-    // first so the GitHub button doubles as the login entry point.
+    // A click that had to set up auth/repo is setup-only: connecting and
+    // pushing in the same click would fire a surprise push (or a confusing
+    // "fetch a problem" error) right after login. Pushing starts from the
+    // next click, once everything is already configured.
+    let didSetup = false;
     if (!(await getToken())) {
       await this._githubLogin();
       if (!(await getToken())) { return; }
+      didSetup = true;
     }
     let repo = await getRepoFullName();
     if (!repo) {
       repo = await this._pickGithubRepo();
       if (!repo) { return; }
+      didSetup = true;
+    }
+    if (didSetup) {
+      this.sendCommand('info', {
+        message: t('✓ GitHub 연동 완료 — 문제를 푼 뒤 다시 누르면 푸시됩니다.', '✓ GitHub connected — press again after solving a problem to push.'),
+      });
+      return;
     }
     if (!this._currentProblem) {
       this.sendCommand('error', { message: t('먼저 문제를 가져와주세요.', 'Please fetch a problem first.') });
