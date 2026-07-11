@@ -1,5 +1,21 @@
 # Changelog
 
+## [1.5.0] - 2026-07-11
+
+### Added
+
+- **GitHub One-Click Login**: The login the README promised now actually exists. The toolbar GitHub button is a connection toggle — signed out it runs VS Code's built-in GitHub authentication and immediately asks which repository to push to; signed in it reads "로그인됨/Logged in" and clicking again disconnects (after a confirmation dialog). The Settings panel gets the same login button plus a manual PAT field as a fallback, and the repository dropdown finally populates with your repos.
+
+### Changed
+
+- **Push Moved to the Submit Flow**: The toolbar GitHub button no longer pushes. With "Auto Push on Submit" enabled, the solution is pushed to the selected repository the moment a submission is confirmed — submissions go through the external browser, so the extension cannot see the verdict; pushing on submit is what the setting can honestly deliver.
+
+### Fixed
+
+- **"g++ not found" Despite a Working Terminal (Windows)**: The extension host inherits the PATH captured when VS Code was launched, so a compiler installed afterwards worked in every terminal but not in the extension. Tool detection now falls back to the live PATH from the Windows registry (machine + user, with `%VAR%` expansion), handles quoted PATH entries, and knows more install locations — scoop shims, Chocolatey, w64devkit, MSYS2 clang64/mingw32, Code::Blocks bundled MinGW, and Embarcadero Dev-C++. Applies to every language's toolchain, not just g++.
+- **GitHub Settings Never Persisted**: The token field and repository selector wrote to unregistered configuration keys (which throw on update) while the push logic read from extension storage — so nothing entered in Settings ever took effect, and the auto-push toggle likewise never reached the runtime. All three now land in the storage the push logic actually reads.
+- **Auto-Push Never Fired**: The accepted-submission hook lived in a leftover code path that nothing calls, so auto-push was unreachable. It is now wired to the real submit flow.
+
 ## [1.4.0] - 2026-07-09
 
 ### Added
